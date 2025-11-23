@@ -61,6 +61,32 @@
    - 在资源管理器中右键项目文件夹 > **Deploy to Web App**
    - 选择订阅、现有/新建 Web App，扩展会自动打包并上传
 
+---
+
+## GitHub Actions 自动部署
+
+仓库已经包含 [`azure-app-service.yml`](.github/workflows/azure-app-service.yml) 工作流，会在 `main` 分支有新的 push 时自动执行 `npm ci`、`npm run lint`、`npm run build` 并将代码发布到 Azure App Service。启用方式如下：
+
+1. **准备 Azure 资源**：按上方步骤创建 Resource Group、App Service Plan 与 Web App。
+2. **设置发布凭据**：在 GitHub 仓库中添加机密 `AZURE_WEBAPP_PUBLISH_PROFILE`，值可在 Portal > Web App > *Get publish profile* 下载到的 XML 文件中复制，或者使用命令：
+   ```bash
+   az webapp deployment list-publishing-profiles \
+     --resource-group MyBlogResourceGroup \
+     --name my-unique-blog-name \
+     --xml
+   ```
+3. **指定 Web App 名称**：
+   - 最简单做法是在 `azure-app-service.yml` 顶部的 `AZURE_WEBAPP_NAME` 中写入刚创建的 Web App 名称；
+   - 或者在仓库的 **Settings > Variables > Actions** 中创建变量 `AZURE_WEBAPP_NAME`，随后删除工作流里的占位符即可。
+4. **首次触发**：在 GitHub 的 *Actions* 页面对该工作流执行一次 **Run workflow**，确认发布成功后即可依赖 `main` 分支的 push 自动部署。
+
+### 工作流概览
+
+- `build` job：安装依赖、运行 ESLint、执行 `next build`，在进入部署环节前就能发现问题。
+- `deploy` job：只有在 `main` 分支上才会执行，使用 `azure/webapps-deploy@v2` 将源码推送到 App Service，Azure 端会自动运行 `npm install` 和 `npm run build`，最后通过 `npm start` 启动。
+
+> **提示**：如果你更喜欢在 CI 里产出构建产物再部署，可以把 `.next`, `public`, `package*.json`, `node_modules` 打包成 zip 并把 `azure/webapps-deploy` 的 `package` 参数指向该 zip。当前配置为了简单直接使用源码部署。
+
 ### 本地构建 & 测试
 
 ```bash
