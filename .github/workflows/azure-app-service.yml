@@ -8,7 +8,7 @@ on:
 
 env:
   NODE_VERSION: "20.x"
-  AZURE_WEBAPP_NAME: "herrychan-nextjs-blog"
+  AZURE_WEBAPP_NAME: "chengdezhi"
 
 jobs:
   build:
