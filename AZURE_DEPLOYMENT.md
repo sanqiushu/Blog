@@ -1,101 +1,192 @@
 # Azure 部署指南
 
-本项目推荐使用 **Azure App Service** 来部署 Next.js，这样可以完整保留 SSR、动态路由以及未来可能添加的 API Routes。
+本项目使用 **Azure App Service** 来部署 Next.js 应用，通过 GitHub Actions 实现自动化部署。
 
-## Azure App Service（推荐）
+## 当前部署配置
 
-### 前提条件
-- Azure 账户
-- 已安装 [Azure CLI](https://learn.microsoft.com/cli/azure/)
-- 代码已经推送到 GitHub 或其他 Git 提供商
+- **Web App 名称**: `chengdezhi`
+- **访问地址**: https://chengdezhi.azurewebsites.net
+- **资源组**: `MyBlogResourceGroup`
+- **App Service 计划**: `MyBlogPlan` (B1 SKU)
+- **运行时**: Node.js 20 LTS
+- **部署方式**: GitHub Actions + Azure Service Principal
 
-### 部署步骤
+## 架构说明
 
-1. **安装 Azure CLI（如尚未安装）**
-   ```bash
-   brew install azure-cli
-   ```
+项目使用 Next.js 的 **standalone 输出模式**，优势：
+- 自包含的服务器，所有依赖打包在一起
+- 更小的部署体积，更快的启动时间
+- 避免 Azure Oryx 构建系统的兼容性问题
 
-2. **登录 Azure**
-   ```bash
-   az login
-   ```
+## 自动部署流程
 
-3. **创建资源组**
-   ```bash
-   az group create --name MyBlogResourceGroup --location eastasia
-   ```
+每次推送到 `main` 分支时，GitHub Actions 会自动：
 
-4. **创建 Linux App Service 计划**
-   ```bash
-   az appservice plan create --name MyBlogPlan --resource-group MyBlogResourceGroup --sku B1 --is-linux
-   ```
+1. **构建阶段**：
+   - 安装依赖 (`npm ci`)
+   - 运行代码检查 (`npm run lint`)
+   - 构建应用 (`npm run build`)
+   - 准备 standalone 部署包
 
-5. **创建 Web App（Node 运行时）**
-   ```bash
-   az webapp create \
-     --resource-group MyBlogResourceGroup \
-     --plan MyBlogPlan \
-     --name my-unique-blog-name \
-     --runtime "NODE:18-lts"
-   ```
+2. **部署阶段**：
+   - 使用 Azure Service Principal 登录
+   - 将构建产物部署到 Azure App Service
+   - 应用自动重启并上线
 
-6. **配置源码部署（可选，但推荐）**
-   ```bash
-   az webapp deployment source config \
-     --name my-unique-blog-name \
-     --resource-group MyBlogResourceGroup \
-     --repo-url https://github.com/YOUR_USERNAME/YOUR_REPO \
-     --branch main \
-     --manual-integration
-   ```
+## 首次部署设置
 
-7. **设置启动命令和端口**
-   ```bash
-   az webapp config set --resource-group MyBlogResourceGroup --name my-unique-blog-name --startup-file "npm start"
-   az webapp config appsettings set --resource-group MyBlogResourceGroup --name my-unique-blog-name --settings PORT=8080
-   ```
-
-8. **（可选）使用 ZIP/VS Code 直接部署**
-   - 安装 VS Code 的 Azure App Service 扩展
-   - 在资源管理器中右键项目文件夹 > **Deploy to Web App**
-   - 选择订阅、现有/新建 Web App，扩展会自动打包并上传
-
----
-
-## GitHub Actions 自动部署
-
-仓库已经包含 [`azure-app-service.yml`](.github/workflows/azure-app-service.yml) 工作流，会在 `main` 分支有新的 push 时自动执行 `npm ci`、`npm run lint`、`npm run build` 并将代码发布到 Azure App Service。启用方式如下：
-
-1. **准备 Azure 资源**：按上方步骤创建 Resource Group、App Service Plan 与 Web App。
-2. **设置发布凭据**：在 GitHub 仓库中添加机密 `AZURE_WEBAPP_PUBLISH_PROFILE`，值可在 Portal > Web App > *Get publish profile* 下载到的 XML 文件中复制，或者使用命令：
-   ```bash
-   az webapp deployment list-publishing-profiles \
-     --resource-group MyBlogResourceGroup \
-     --name my-unique-blog-name \
-     --xml
-   ```
-3. **指定 Web App 名称**：
-   - 最简单做法是在 `azure-app-service.yml` 顶部的 `AZURE_WEBAPP_NAME` 中写入刚创建的 Web App 名称；
-   - 或者在仓库的 **Settings > Variables > Actions** 中创建变量 `AZURE_WEBAPP_NAME`，随后删除工作流里的占位符即可。
-4. **首次触发**：在 GitHub 的 *Actions* 页面对该工作流执行一次 **Run workflow**，确认发布成功后即可依赖 `main` 分支的 push 自动部署。
-
-### 工作流概览
-
-- `build` job：安装依赖、运行 ESLint、执行 `next build`，在进入部署环节前就能发现问题。
-- `deploy` job：只有在 `main` 分支上才会执行，使用 `azure/webapps-deploy@v2` 将源码推送到 App Service，Azure 端会自动运行 `npm install` 和 `npm run build`，最后通过 `npm start` 启动。
-
-> **提示**：如果你更喜欢在 CI 里产出构建产物再部署，可以把 `.next`, `public`, `package*.json`, `node_modules` 打包成 zip 并把 `azure/webapps-deploy` 的 `package` 参数指向该 zip。当前配置为了简单直接使用源码部署。
-
-### 本地构建 & 测试
+### 1. 创建 Azure 资源
 
 ```bash
-npm install
-npm run build
-npm run start
+# 安装 Azure CLI
+brew install azure-cli
+
+# 登录 Azure（需要使用 --tenant 参数）
+az login --tenant YOUR_TENANT_ID --use-device-code
+
+# 创建资源组
+az group create --name MyBlogResourceGroup --location eastasia
+
+# 创建 App Service 计划
+az appservice plan create \
+  --name MyBlogPlan \
+  --resource-group MyBlogResourceGroup \
+  --sku B1 \
+  --is-linux
+
+# 创建 Web App
+az webapp create \
+  --resource-group MyBlogResourceGroup \
+  --plan MyBlogPlan \
+  --name YOUR_UNIQUE_NAME \
+  --runtime "NODE:20-lts"
+
+# 设置启动命令
+az webapp config set \
+  --resource-group MyBlogResourceGroup \
+  --name YOUR_UNIQUE_NAME \
+  --startup-file "node server.js"
 ```
 
-确认应用在本地端口 3000 运行成功，再推送到 Azure。
+### 2. 创建 Service Principal
+
+```bash
+# 创建用于 GitHub Actions 的 Service Principal
+az ad sp create-for-rbac \
+  --name "your-blog-sp" \
+  --role contributor \
+  --scopes /subscriptions/YOUR_SUBSCRIPTION_ID/resourceGroups/MyBlogResourceGroup \
+  --sdk-auth
+```
+
+这会输出包含凭据的 JSON，复制完整输出。
+
+### 3. 配置 GitHub Secret
+
+1. 访问仓库的 **Settings > Secrets and variables > Actions**
+2. 点击 **New repository secret**
+3. 添加 Secret：
+   - **Name**: `AZURE_CREDENTIALS`
+   - **Secret**: 粘贴上一步的完整 JSON 输出
+4. 点击 **Add secret**
+
+### 4. 更新工作流配置
+
+编辑 `.github/workflows/azure-app-service.yml`：
+
+```yaml
+env:
+  NODE_VERSION: "20.x"
+  AZURE_WEBAPP_NAME: "YOUR_UNIQUE_NAME"  # 改为你的 Web App 名称
+```
+
+### 5. 触发部署
+
+推送代码到 `main` 分支即可触发自动部署：
+
+```bash
+git add .
+git commit -m "Update deployment config"
+git push origin main
+```
+
+## 本地测试
+
+在推送前，建议本地测试 standalone 构建：
+
+```bash
+# 安装依赖
+npm install
+
+# 构建应用（会生成 .next/standalone 目录）
+npm run build
+
+# 测试 standalone 模式
+cd .next/standalone
+node server.js
+```
+
+访问 http://localhost:3000 确认应用正常运行。
+
+## 故障排查
+
+### 查看部署日志
+
+```bash
+# 下载应用日志
+az webapp log download \
+  --resource-group MyBlogResourceGroup \
+  --name YOUR_WEBAPP_NAME \
+  --log-file logs.zip
+
+# 实时查看日志
+az webapp log tail \
+  --resource-group MyBlogResourceGroup \
+  --name YOUR_WEBAPP_NAME
+```
+
+### 常见问题
+
+**问题：Application Error**
+- 检查启动命令是否为 `node server.js`
+- 确认 standalone 输出是否正确生成
+- 查看应用日志了解具体错误
+
+**问题：部署超时**
+- 检查 GitHub Actions 日志
+- 确认 Service Principal 权限正确
+
+**问题：MFA 登录失败**
+- 使用 `az login --tenant TENANT_ID --use-device-code`
+- 完成设备代码验证后再执行其他命令
+
+## 高级配置
+
+### 环境变量
+
+在 Azure Portal 或通过 CLI 添加环境变量：
+
+```bash
+az webapp config appsettings set \
+  --resource-group MyBlogResourceGroup \
+  --name YOUR_WEBAPP_NAME \
+  --settings KEY=VALUE
+```
+
+### 自定义域名
+
+1. 在 Azure Portal 的 Web App 中选择 "Custom domains"
+2. 添加自定义域名并验证
+3. 配置 DNS 记录指向 Azure
+
+### 启用 HTTPS
+
+```bash
+az webapp update \
+  --resource-group MyBlogResourceGroup \
+  --name YOUR_WEBAPP_NAME \
+  --https-only true
+```
 
 ---
 
