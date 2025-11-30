@@ -1,4 +1,4 @@
-import { BlobServiceClient, ContainerClient } from "@azure/storage-blob";
+import { BlobServiceClient, ContainerClient, generateBlobSASQueryParameters, BlobSASPermissions, StorageSharedKeyCredential } from "@azure/storage-blob";
 import { BlogPost } from "@/types/blog";
 
 // Azure Storage 配置
@@ -161,6 +161,22 @@ export async function deletePost(id: string): Promise<BlogPost | null> {
 // 图片存储操作
 // ============================================
 
+// 从连接字符串解析账户名和密钥
+function parseConnectionString(): { accountName: string; accountKey: string } | null {
+  if (!AZURE_STORAGE_CONNECTION_STRING) return null;
+  
+  const accountNameMatch = AZURE_STORAGE_CONNECTION_STRING.match(/AccountName=([^;]+)/);
+  const accountKeyMatch = AZURE_STORAGE_CONNECTION_STRING.match(/AccountKey=([^;]+)/);
+  
+  if (accountNameMatch && accountKeyMatch) {
+    return {
+      accountName: accountNameMatch[1],
+      accountKey: accountKeyMatch[1],
+    };
+  }
+  return null;
+}
+
 // 获取图片容器客户端
 async function getImagesContainer(): Promise<ContainerClient> {
   if (!AZURE_STORAGE_CONNECTION_STRING) {
@@ -171,12 +187,40 @@ async function getImagesContainer(): Promise<ContainerClient> {
   );
   const containerClient = blobServiceClient.getContainerClient(IMAGES_CONTAINER_NAME);
   
-  // 确保容器存在并设置为公开访问（允许匿名读取图片）
-  await containerClient.createIfNotExists({
-    access: "blob", // 允许公开访问 blob
-  });
+  // 确保容器存在（私有访问，不需要公开）
+  await containerClient.createIfNotExists();
   
   return containerClient;
+}
+
+// 生成带 SAS Token 的图片 URL（有效期 10 年）
+function generateSasUrl(blobClient: ReturnType<ContainerClient["getBlockBlobClient"]>): string {
+  const credentials = parseConnectionString();
+  if (!credentials) {
+    // 如果无法解析凭据，返回普通 URL
+    return blobClient.url;
+  }
+
+  const sharedKeyCredential = new StorageSharedKeyCredential(
+    credentials.accountName,
+    credentials.accountKey
+  );
+
+  // 设置 SAS Token 有效期为 10 年
+  const expiresOn = new Date();
+  expiresOn.setFullYear(expiresOn.getFullYear() + 10);
+
+  const sasToken = generateBlobSASQueryParameters(
+    {
+      containerName: IMAGES_CONTAINER_NAME,
+      blobName: blobClient.name,
+      permissions: BlobSASPermissions.parse("r"), // 只读权限
+      expiresOn: expiresOn,
+    },
+    sharedKeyCredential
+  ).toString();
+
+  return `${blobClient.url}?${sasToken}`;
 }
 
 // 生成唯一的图片文件名
@@ -205,8 +249,8 @@ export async function uploadImage(
       },
     });
 
-    // 返回图片的公开 URL
-    return blockBlobClient.url;
+    // 返回带 SAS Token 的图片 URL
+    return generateSasUrl(blockBlobClient);
   } catch (error) {
     console.error("上传图片失败:", error);
     throw error;
