@@ -77,8 +77,8 @@ jobs:
             [
               { "name": "ADMIN_PASSWORD", "value": "${{ secrets.ADMIN_PASSWORD }}", "slotSetting": false },
               { "name": "SCM_DO_BUILD_DURING_DEPLOYMENT", "value": "false", "slotSetting": false },
-              { "name": "WEBSITE_RUN_FROM_PACKAGE", "value": "1", "slotSetting": false },
-              { "name": "WEBSITE_NODE_DEFAULT_VERSION", "value": "~20", "slotSetting": false }
+              { "name": "PORT", "value": "8080", "slotSetting": false },
+              { "name": "HOSTNAME", "value": "0.0.0.0", "slotSetting": false }
             ]
           general-settings-json: |
             {
