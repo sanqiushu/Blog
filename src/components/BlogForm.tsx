@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, FormEvent, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { BlogPost } from "@/types/blog";
 
 // 检测是否包含中文
@@ -16,6 +16,7 @@ interface BlogFormProps {
 
 export default function BlogForm({ initialData, isEdit = false }: BlogFormProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [slugWarning, setSlugWarning] = useState("");
@@ -80,8 +81,19 @@ export default function BlogForm({ initialData, isEdit = false }: BlogFormProps)
       });
 
       if (response.ok) {
-        alert(isEdit ? "博客已成功更新" : "博客已成功创建");
-        router.push("/admin");
+        const result = await response.json();
+        const slug = result.slug || formData.slug || initialData?.slug;
+        
+        // 如果有 from 参数（从博文页面来），跳转回博文
+        // 否则跳转到博文页面（新建或编辑后查看）
+        const from = searchParams.get("from");
+        if (from) {
+          router.push(from);
+        } else if (slug) {
+          router.push(`/blog/${slug}`);
+        } else {
+          router.push("/admin");
+        }
         router.refresh();
       } else {
         const error = await response.json();
@@ -97,7 +109,8 @@ export default function BlogForm({ initialData, isEdit = false }: BlogFormProps)
 
   const handleCancel = () => {
     if (confirm("确定要取消吗？未保存的更改将丢失。")) {
-      router.push("/admin");
+      const from = searchParams.get("from");
+      router.push(from || "/admin");
     }
   };
 

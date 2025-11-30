@@ -4,6 +4,7 @@ import { readPosts } from "@/lib/storage";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
+import AdminActions from "@/components/AdminActions";
 
 // 强制动态渲染，禁用缓存
 export const dynamic = 'force-dynamic';
@@ -38,9 +39,12 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
           </Link>
           
           <header className="mb-8">
-            <h1 className="mb-4 text-4xl font-bold text-gray-900 dark:text-white">
-              {post.title}
-            </h1>
+            <div className="flex items-start justify-between gap-4">
+              <h1 className="mb-4 text-4xl font-bold text-gray-900 dark:text-white">
+                {post.title}
+              </h1>
+              <AdminActions postId={post.id} postSlug={post.slug} />
+            </div>
             
             <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
               <time>{post.date}</time>
