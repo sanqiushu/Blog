@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { blogPosts } from "@/data/posts";
+import { readPosts } from "@/lib/storage";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 
@@ -11,14 +11,16 @@ interface BlogPostPageProps {
 }
 
 export async function generateStaticParams() {
-  return blogPosts.map((post) => ({
+  const posts = await readPosts();
+  return posts.map((post) => ({
     slug: post.slug,
   }));
 }
 
 export default async function BlogPostPage({ params }: BlogPostPageProps) {
   const { slug } = await params;
-  const post = blogPosts.find((p) => p.slug === slug);
+  const posts = await readPosts();
+  const post = posts.find((p) => p.slug === slug);
 
   if (!post) {
     notFound();

@@ -32,6 +32,12 @@ export default function Header() {
             >
               关于
             </Link>
+            <Link 
+              href="/admin" 
+              className="text-gray-600 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+            >
+              管理
+            </Link>
           </nav>
         </div>
       </div>

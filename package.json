@@ -6,12 +6,16 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "init-data": "tsx scripts/init-data.ts",
+    "migrate-to-azure": "tsx scripts/migrate-to-azure.ts",
+    "azurite": "azurite --silent --location ./azurite --debug ./azurite/debug.log"
   },
   "engines": {
-    "node": ">=18.18.0 <21"
+    "node": ">=18.18.0"
   },
   "dependencies": {
+    "@azure/storage-blob": "^12.29.1",
     "next": "16.0.3",
     "react": "19.2.0",
     "react-dom": "19.2.0"
@@ -21,9 +25,11 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "azurite": "^3.35.0",
     "eslint": "^9",
     "eslint-config-next": "16.0.3",
     "tailwindcss": "^4",
+    "tsx": "^4.20.6",
     "typescript": "5.9.3"
   }
 }

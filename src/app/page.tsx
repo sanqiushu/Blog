@@ -2,9 +2,11 @@ import BlogCard from "@/components/BlogCard";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import Image from "next/image";
-import { blogPosts } from "@/data/posts";
+import { readPosts } from "@/lib/storage";
 
-export default function Home() {
+export default async function Home() {
+  const blogPosts = await readPosts();
+  
   return (
     <div className="flex min-h-screen flex-col bg-gray-50 dark:bg-black">
       <Header />
