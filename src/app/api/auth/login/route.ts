@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import { verifyPassword, createSession } from "@/lib/auth";
+import { verifyPassword, createSession, SESSION_COOKIE_NAME } from "@/lib/auth";
 import { cookies } from "next/headers";
-
-const SESSION_COOKIE_NAME = "admin_session";
 
 export async function POST(request: Request) {
   try {
