@@ -1,5 +1,6 @@
 import { BlobServiceClient, ContainerClient, generateBlobSASQueryParameters, BlobSASPermissions, StorageSharedKeyCredential } from "@azure/storage-blob";
 import { BlogPost } from "@/types/blog";
+import sharp from "sharp";
 
 // Azure Storage 配置
 const AZURE_STORAGE_CONNECTION_STRING = process.env.AZURE_STORAGE_CONNECTION_STRING;
@@ -231,7 +232,53 @@ function generateImageName(originalName: string): string {
   return `${timestamp}-${random}.${ext}`;
 }
 
-// 上传图片
+// 图片压缩配置
+const IMAGE_SIZES = {
+  original: { width: 1920, quality: 85 },  // 原图最大宽度
+  thumbnail: { width: 800, quality: 80 },   // 缩略图（用于博客列表和文章内）
+};
+
+// 压缩图片
+async function compressImage(
+  buffer: Buffer,
+  maxWidth: number,
+  quality: number
+): Promise<Buffer> {
+  try {
+    const image = sharp(buffer);
+    const metadata = await image.metadata();
+    
+    // 只有当图片宽度超过 maxWidth 时才压缩
+    const needsResize = metadata.width && metadata.width > maxWidth;
+    
+    let pipeline = image;
+    
+    if (needsResize) {
+      pipeline = pipeline.resize(maxWidth, null, {
+        withoutEnlargement: true,
+        fit: 'inside',
+      });
+    }
+    
+    // 根据格式压缩
+    if (metadata.format === 'png') {
+      return await pipeline.png({ quality, compressionLevel: 9 }).toBuffer();
+    } else if (metadata.format === 'webp') {
+      return await pipeline.webp({ quality }).toBuffer();
+    } else if (metadata.format === 'gif') {
+      // GIF 保持原样，不压缩
+      return buffer;
+    } else {
+      // 默认转为 JPEG
+      return await pipeline.jpeg({ quality, progressive: true }).toBuffer();
+    }
+  } catch (error) {
+    console.error("图片压缩失败，使用原图:", error);
+    return buffer;
+  }
+}
+
+// 上传图片（返回缩略图 URL，同时存储原图）
 export async function uploadImage(
   file: Buffer,
   originalName: string,
@@ -239,34 +286,69 @@ export async function uploadImage(
 ): Promise<string> {
   try {
     const containerClient = await getImagesContainer();
-    const imageName = generateImageName(originalName);
-    const blockBlobClient = containerClient.getBlockBlobClient(imageName);
-
-    await blockBlobClient.uploadData(file, {
+    const baseName = generateImageName(originalName);
+    const ext = baseName.split('.').pop() || 'jpg';
+    const nameWithoutExt = baseName.replace(`.${ext}`, '');
+    
+    // 1. 压缩并上传缩略图（用于博客显示）
+    const thumbnailBuffer = await compressImage(
+      file,
+      IMAGE_SIZES.thumbnail.width,
+      IMAGE_SIZES.thumbnail.quality
+    );
+    const thumbnailName = `${nameWithoutExt}-thumb.${ext}`;
+    const thumbnailBlobClient = containerClient.getBlockBlobClient(thumbnailName);
+    
+    await thumbnailBlobClient.uploadData(thumbnailBuffer, {
       blobHTTPHeaders: {
         blobContentType: contentType,
-        blobCacheControl: "public, max-age=31536000", // 缓存一年
+        blobCacheControl: "public, max-age=31536000",
+      },
+    });
+    
+    // 2. 压缩并上传原图（保留较高质量版本）
+    const originalBuffer = await compressImage(
+      file,
+      IMAGE_SIZES.original.width,
+      IMAGE_SIZES.original.quality
+    );
+    const originalBlobClient = containerClient.getBlockBlobClient(baseName);
+    
+    await originalBlobClient.uploadData(originalBuffer, {
+      blobHTTPHeaders: {
+        blobContentType: contentType,
+        blobCacheControl: "public, max-age=31536000",
       },
     });
 
-    // 返回带 SAS Token 的图片 URL
-    return generateSasUrl(blockBlobClient);
+    // 返回缩略图的 URL（用于博客文章显示）
+    // 原图可通过去掉 -thumb 后缀访问
+    return generateSasUrl(thumbnailBlobClient);
   } catch (error) {
     console.error("上传图片失败:", error);
     throw error;
   }
 }
 
-// 删除图片
+// 删除图片（同时删除原图和缩略图）
 export async function deleteImage(imageUrl: string): Promise<void> {
   try {
     const containerClient = await getImagesContainer();
-    // 从 URL 中提取文件名
-    const imageName = imageUrl.split('/').pop();
+    // 从 URL 中提取文件名（去掉 SAS Token）
+    const urlWithoutQuery = imageUrl.split('?')[0];
+    const imageName = urlWithoutQuery.split('/').pop();
     if (!imageName) return;
 
-    const blockBlobClient = containerClient.getBlockBlobClient(imageName);
-    await blockBlobClient.deleteIfExists();
+    // 删除缩略图
+    const thumbBlobClient = containerClient.getBlockBlobClient(imageName);
+    await thumbBlobClient.deleteIfExists();
+    
+    // 删除原图
+    const originalName = imageName.replace('-thumb.', '.');
+    if (originalName !== imageName) {
+      const originalBlobClient = containerClient.getBlockBlobClient(originalName);
+      await originalBlobClient.deleteIfExists();
+    }
   } catch (error) {
     console.error("删除图片失败:", error);
     // 删除失败不抛出错误，避免影响其他操作
