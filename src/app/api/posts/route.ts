@@ -8,7 +8,7 @@ export async function GET() {
   try {
     const posts = await readPosts();
     return NextResponse.json(posts);
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: "获取博客列表失败" },
       { status: 500 }
@@ -20,7 +20,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     // 验证身份
-    const authenticated = await isAuthenticated(request as any);
+    const authenticated = await isAuthenticated();
     if (!authenticated) {
       return NextResponse.json(
         { error: "未授权访问" },

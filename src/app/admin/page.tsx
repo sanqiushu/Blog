@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
@@ -14,11 +14,19 @@ export default function AdminPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [authenticated, setAuthenticated] = useState(false);
 
-  useEffect(() => {
-    checkAuth();
+  const fetchPosts = useCallback(async () => {
+    try {
+      const response = await fetch("/api/posts");
+      const data = await response.json();
+      setPosts(data);
+    } catch (error) {
+      console.error("获取博客列表失败:", error);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const checkAuth = async () => {
+  const checkAuth = useCallback(async () => {
     try {
       const response = await fetch("/api/auth/check");
       const data = await response.json();
@@ -34,19 +42,11 @@ export default function AdminPage() {
       console.error("认证检查失败:", error);
       router.push("/login");
     }
-  };
+  }, [router, fetchPosts]);
 
-  const fetchPosts = async () => {
-    try {
-      const response = await fetch("/api/posts");
-      const data = await response.json();
-      setPosts(data);
-    } catch (error) {
-      console.error("获取博客列表失败:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
 
   const handleLogout = async () => {
     try {

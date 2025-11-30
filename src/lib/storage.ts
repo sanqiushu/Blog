@@ -3,8 +3,19 @@ import { BlogPost } from "@/types/blog";
 // 根据环境变量动态导入存储模块
 const useAzureStorage = !!process.env.AZURE_STORAGE_CONNECTION_STRING;
 
+// 存储模块接口
+interface StorageModule {
+  readPosts: () => Promise<BlogPost[]>;
+  writePosts: (posts: BlogPost[]) => Promise<void>;
+  getPostById: (id: string) => Promise<BlogPost | null>;
+  getPostBySlug: (slug: string) => Promise<BlogPost | null>;
+  createPost: (postData: Omit<BlogPost, "id">) => Promise<BlogPost>;
+  updatePost: (id: string, postData: Partial<BlogPost>) => Promise<BlogPost | null>;
+  deletePost: (id: string) => Promise<BlogPost | null>;
+}
+
 // 动态导入存储模块
-let storageModule: any;
+let storageModule: StorageModule;
 
 async function getStorageModule() {
   if (!storageModule) {

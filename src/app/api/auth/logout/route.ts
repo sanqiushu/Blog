@@ -22,7 +22,7 @@ export async function POST() {
       success: true,
       message: "已退出登录"
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: "退出登录失败" },
       { status: 500 }

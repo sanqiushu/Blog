@@ -23,7 +23,7 @@ export async function GET(request: Request, { params }: RouteParams) {
     }
     
     return NextResponse.json(post);
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: "获取博客失败" },
       { status: 500 }
@@ -35,7 +35,7 @@ export async function GET(request: Request, { params }: RouteParams) {
 export async function PUT(request: Request, { params }: RouteParams) {
   try {
     // 验证身份
-    const authenticated = await isAuthenticated(request as any);
+    const authenticated = await isAuthenticated();
     if (!authenticated) {
       return NextResponse.json(
         { error: "未授权访问" },
@@ -70,10 +70,10 @@ export async function PUT(request: Request, { params }: RouteParams) {
 }
 
 // DELETE - 删除博客文章（需要认证）
-export async function DELETE(request: Request, { params }: RouteParams) {
+export async function DELETE(_request: Request, { params }: RouteParams) {
   try {
     // 验证身份
-    const authenticated = await isAuthenticated(request as any);
+    const authenticated = await isAuthenticated();
     if (!authenticated) {
       return NextResponse.json(
         { error: "未授权访问" },
