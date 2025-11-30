@@ -2,10 +2,83 @@
 
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import Image from "next/image";
+import { useState } from "react";
 
 interface MarkdownRendererProps {
   content: string;
+}
+
+// 从缩略图 URL 获取原图 URL
+function getOriginalImageUrl(thumbnailUrl: string): string {
+  // 缩略图格式: xxx-thumb.jpg?sas_token
+  // 原图格式: xxx.jpg?sas_token
+  const [urlPart, queryPart] = thumbnailUrl.split('?');
+  const originalUrl = urlPart.replace('-thumb.', '.');
+  return queryPart ? `${originalUrl}?${queryPart}` : originalUrl;
+}
+
+// 检查是否是缩略图 URL
+function isThumbnailUrl(url: string): boolean {
+  return url.includes('-thumb.');
+}
+
+// 渐进式图片组件
+function ProgressiveImage({ src, alt }: { src: string; alt: string }) {
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [hasError, setHasError] = useState(false);
+  
+  // 如果是缩略图，准备原图 URL
+  const isThumb = isThumbnailUrl(src);
+  const originalSrc = isThumb ? getOriginalImageUrl(src) : src;
+  const thumbnailSrc = src;
+
+  return (
+    <span className="block my-6 relative">
+      {/* 缩略图（模糊背景） */}
+      {isThumb && !hasError && (
+        <img
+          src={thumbnailSrc}
+          alt={alt}
+          className={`rounded-lg mx-auto max-w-full h-auto transition-opacity duration-300 ${
+            isLoaded ? 'opacity-0 absolute inset-0' : 'opacity-100'
+          }`}
+          style={{ 
+            objectFit: "contain",
+            filter: isLoaded ? 'none' : 'blur(2px)',
+          }}
+        />
+      )}
+      
+      {/* 原图（高清） */}
+      <img
+        src={isThumb ? originalSrc : src}
+        alt={alt}
+        className={`rounded-lg mx-auto max-w-full h-auto transition-opacity duration-500 ${
+          isThumb && !isLoaded ? 'opacity-0 absolute inset-0' : 'opacity-100'
+        }`}
+        style={{ objectFit: "contain" }}
+        onLoad={() => setIsLoaded(true)}
+        onError={() => {
+          setHasError(true);
+          setIsLoaded(true); // 加载失败时显示缩略图
+        }}
+      />
+      
+      {/* 加载指示器 */}
+      {isThumb && !isLoaded && !hasError && (
+        <span className="absolute bottom-4 right-4 bg-black/50 text-white text-xs px-2 py-1 rounded">
+          加载高清图...
+        </span>
+      )}
+      
+      {/* 图片说明 */}
+      {alt && (
+        <span className="block text-center text-sm text-gray-500 mt-2">
+          {alt}
+        </span>
+      )}
+    </span>
+  );
 }
 
 export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
@@ -13,27 +86,10 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
       components={{
-        // 自定义图片渲染
+        // 自定义图片渲染 - 使用渐进式加载
         img: ({ src, alt }) => {
           if (!src || typeof src !== "string") return null;
-          return (
-            <span className="block my-6">
-              <Image
-                src={src}
-                alt={alt || "博客图片"}
-                width={800}
-                height={600}
-                className="rounded-lg mx-auto max-w-full h-auto"
-                style={{ objectFit: "contain" }}
-                unoptimized // 外部图片不使用 Next.js 优化
-              />
-              {alt && (
-                <span className="block text-center text-sm text-gray-500 mt-2">
-                  {alt}
-                </span>
-              )}
-            </span>
-          );
+          return <ProgressiveImage src={src} alt={alt || "博客图片"} />;
         },
         // 自定义链接
         a: ({ href, children }) => (
