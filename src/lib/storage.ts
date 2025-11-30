@@ -4,6 +4,7 @@ import { BlogPost } from "@/types/blog";
 // Azure Storage 配置
 const AZURE_STORAGE_CONNECTION_STRING = process.env.AZURE_STORAGE_CONNECTION_STRING;
 const CONTAINER_NAME = "blog-data";
+const IMAGES_CONTAINER_NAME = "blog-images";
 const BLOB_NAME = "posts.json";
 
 if (!AZURE_STORAGE_CONNECTION_STRING) {
@@ -154,4 +155,94 @@ export async function deletePost(id: string): Promise<BlogPost | null> {
   const deletedPost = posts.splice(index, 1)[0];
   await writePosts(posts);
   return deletedPost;
+}
+
+// ============================================
+// 图片存储操作
+// ============================================
+
+// 获取图片容器客户端
+async function getImagesContainer(): Promise<ContainerClient> {
+  if (!AZURE_STORAGE_CONNECTION_STRING) {
+    throw new Error("AZURE_STORAGE_CONNECTION_STRING 环境变量未设置");
+  }
+  const blobServiceClient = BlobServiceClient.fromConnectionString(
+    AZURE_STORAGE_CONNECTION_STRING
+  );
+  const containerClient = blobServiceClient.getContainerClient(IMAGES_CONTAINER_NAME);
+  
+  // 确保容器存在并设置为公开访问（允许匿名读取图片）
+  await containerClient.createIfNotExists({
+    access: "blob", // 允许公开访问 blob
+  });
+  
+  return containerClient;
+}
+
+// 生成唯一的图片文件名
+function generateImageName(originalName: string): string {
+  const timestamp = Date.now();
+  const random = Math.random().toString(36).substring(2, 8);
+  const ext = originalName.split('.').pop()?.toLowerCase() || 'jpg';
+  return `${timestamp}-${random}.${ext}`;
+}
+
+// 上传图片
+export async function uploadImage(
+  file: Buffer,
+  originalName: string,
+  contentType: string
+): Promise<string> {
+  try {
+    const containerClient = await getImagesContainer();
+    const imageName = generateImageName(originalName);
+    const blockBlobClient = containerClient.getBlockBlobClient(imageName);
+
+    await blockBlobClient.uploadData(file, {
+      blobHTTPHeaders: {
+        blobContentType: contentType,
+        blobCacheControl: "public, max-age=31536000", // 缓存一年
+      },
+    });
+
+    // 返回图片的公开 URL
+    return blockBlobClient.url;
+  } catch (error) {
+    console.error("上传图片失败:", error);
+    throw error;
+  }
+}
+
+// 删除图片
+export async function deleteImage(imageUrl: string): Promise<void> {
+  try {
+    const containerClient = await getImagesContainer();
+    // 从 URL 中提取文件名
+    const imageName = imageUrl.split('/').pop();
+    if (!imageName) return;
+
+    const blockBlobClient = containerClient.getBlockBlobClient(imageName);
+    await blockBlobClient.deleteIfExists();
+  } catch (error) {
+    console.error("删除图片失败:", error);
+    // 删除失败不抛出错误，避免影响其他操作
+  }
+}
+
+// 获取所有图片列表
+export async function listImages(): Promise<string[]> {
+  try {
+    const containerClient = await getImagesContainer();
+    const images: string[] = [];
+
+    for await (const blob of containerClient.listBlobsFlat()) {
+      const blobClient = containerClient.getBlobClient(blob.name);
+      images.push(blobClient.url);
+    }
+
+    return images;
+  } catch (error) {
+    console.error("获取图片列表失败:", error);
+    return [];
+  }
 }

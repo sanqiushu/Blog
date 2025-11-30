@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, FormEvent, useEffect } from "react";
+import { useState, FormEvent, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { BlogPost } from "@/types/blog";
 
@@ -17,7 +17,10 @@ interface BlogFormProps {
 export default function BlogForm({ initialData, isEdit = false }: BlogFormProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [slugWarning, setSlugWarning] = useState("");
+  const contentRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     title: initialData?.title || "",
     slug: initialData?.slug || "",
@@ -98,6 +101,86 @@ export default function BlogForm({ initialData, isEdit = false }: BlogFormProps)
     }
   };
 
+  // 上传图片
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // 验证文件类型
+    if (!file.type.startsWith("image/")) {
+      alert("请选择图片文件");
+      return;
+    }
+
+    // 验证文件大小（5MB）
+    if (file.size > 5 * 1024 * 1024) {
+      alert("图片大小不能超过 5MB");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // 在光标位置插入图片 Markdown
+        insertImageToContent(data.url, file.name);
+      } else {
+        alert(`上传失败: ${data.error || "未知错误"}`);
+      }
+    } catch (error) {
+      console.error("上传图片失败:", error);
+      alert("上传图片失败，请重试");
+    } finally {
+      setUploading(false);
+      // 清空文件输入，允许重复上传同一文件
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
+  // 在内容中插入图片
+  const insertImageToContent = (url: string, altText: string) => {
+    const textarea = contentRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const content = formData.content;
+    
+    // 生成图片 Markdown
+    const imageMarkdown = `\n![${altText}](${url})\n`;
+    
+    // 在光标位置插入
+    const newContent = content.substring(0, start) + imageMarkdown + content.substring(end);
+    
+    setFormData(prev => ({
+      ...prev,
+      content: newContent,
+    }));
+
+    // 聚焦并移动光标到插入内容之后
+    setTimeout(() => {
+      textarea.focus();
+      const newPosition = start + imageMarkdown.length;
+      textarea.setSelectionRange(newPosition, newPosition);
+    }, 0);
+  };
+
+  // 触发文件选择
+  const triggerFileInput = () => {
+    fileInputRef.current?.click();
+  };
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div>
@@ -163,21 +246,59 @@ export default function BlogForm({ initialData, isEdit = false }: BlogFormProps)
       </div>
 
       <div>
-        <label
-          htmlFor="content"
-          className="block text-sm font-medium text-gray-700 dark:text-gray-300"
-        >
-          内容 * (支持 Markdown)
-        </label>
+        <div className="flex items-center justify-between">
+          <label
+            htmlFor="content"
+            className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+          >
+            内容 * (支持 Markdown)
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleImageUpload}
+              accept="image/*"
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={triggerFileInput}
+              disabled={uploading}
+              className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-3 py-1 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+            >
+              {uploading ? (
+                <>
+                  <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  上传中...
+                </>
+              ) : (
+                <>
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  插入图片
+                </>
+              )}
+            </button>
+          </div>
+        </div>
         <textarea
           id="content"
           name="content"
+          ref={contentRef}
           required
           rows={15}
           value={formData.content}
           onChange={handleChange}
           className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 font-mono text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
         />
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          支持 Markdown 语法。点击「插入图片」按钮上传图片，或直接使用 ![描述](图片URL) 格式
+        </p>
       </div>
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">

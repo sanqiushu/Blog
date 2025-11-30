@@ -3,6 +3,7 @@ import Link from "next/link";
 import { readPosts } from "@/lib/storage";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import MarkdownRenderer from "@/components/MarkdownRenderer";
 
 // 强制动态渲染，禁用缓存
 export const dynamic = 'force-dynamic';
@@ -62,8 +63,8 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
           </header>
           
           <div className="prose prose-gray max-w-none dark:prose-invert prose-headings:font-bold prose-a:text-blue-600 dark:prose-a:text-blue-400">
-            <div className="whitespace-pre-wrap rounded-lg bg-white p-8 dark:bg-gray-900">
-              {post.content}
+            <div className="rounded-lg bg-white p-8 dark:bg-gray-900">
+              <MarkdownRenderer content={post.content} />
             </div>
           </div>
         </article>
