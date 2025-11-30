@@ -32,42 +32,54 @@ function ProgressiveImage({ src, alt }: { src: string; alt: string }) {
   const originalSrc = isThumb ? getOriginalImageUrl(src) : src;
   const thumbnailSrc = src;
 
-  return (
-    <span className="block my-6 relative">
-      {/* 缩略图（模糊背景） */}
-      {isThumb && !hasError && (
+  // 非缩略图：直接显示
+  if (!isThumb) {
+    return (
+      <span className="block my-6">
         <img
-          src={thumbnailSrc}
+          src={src}
           alt={alt}
-          className={`rounded-lg mx-auto max-w-full h-auto transition-opacity duration-300 ${
-            isLoaded ? 'opacity-0 absolute inset-0' : 'opacity-100'
-          }`}
-          style={{ 
-            objectFit: "contain",
-            filter: isLoaded ? 'none' : 'blur(2px)',
-          }}
+          className="rounded-lg mx-auto max-w-full h-auto"
+          style={{ objectFit: "contain" }}
         />
-      )}
-      
-      {/* 原图（高清） */}
+        {alt && (
+          <span className="block text-center text-sm text-gray-500 mt-2">
+            {alt}
+          </span>
+        )}
+      </span>
+    );
+  }
+
+  // 缩略图：渐进式加载
+  return (
+    <span className="block my-6">
+      {/* 显示当前应该展示的图片 */}
       <img
-        src={isThumb ? originalSrc : src}
+        src={isLoaded && !hasError ? originalSrc : thumbnailSrc}
         alt={alt}
-        className={`rounded-lg mx-auto max-w-full h-auto transition-opacity duration-500 ${
-          isThumb && !isLoaded ? 'opacity-0 absolute inset-0' : 'opacity-100'
-        }`}
-        style={{ objectFit: "contain" }}
-        onLoad={() => setIsLoaded(true)}
-        onError={() => {
-          setHasError(true);
-          setIsLoaded(true); // 加载失败时显示缩略图
+        className="rounded-lg mx-auto max-w-full h-auto transition-all duration-300"
+        style={{ 
+          objectFit: "contain",
+          filter: isLoaded ? 'none' : 'blur(1px)',
         }}
       />
       
+      {/* 隐藏的原图预加载 */}
+      {!isLoaded && (
+        <img
+          src={originalSrc}
+          alt=""
+          className="hidden"
+          onLoad={() => setIsLoaded(true)}
+          onError={() => setHasError(true)}
+        />
+      )}
+      
       {/* 加载指示器 */}
-      {isThumb && !isLoaded && !hasError && (
-        <span className="absolute bottom-4 right-4 bg-black/50 text-white text-xs px-2 py-1 rounded">
-          加载高清图...
+      {!isLoaded && !hasError && (
+        <span className="block text-center text-xs text-gray-400 mt-1">
+          正在加载高清图片...
         </span>
       )}
       
