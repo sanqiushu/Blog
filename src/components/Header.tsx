@@ -27,6 +27,12 @@ export default function Header() {
               首页
             </Link>
             <Link 
+              href="/gallery" 
+              className="text-gray-600 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+            >
+              相册
+            </Link>
+            <Link 
               href="/about" 
               className="text-gray-600 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
             >

@@ -8,18 +8,22 @@ interface MarkdownRendererProps {
   content: string;
 }
 
-// 从缩略图 URL 获取原图 URL
-function getOriginalImageUrl(thumbnailUrl: string): string {
-  // 缩略图格式: xxx-thumb.jpg?sas_token
-  // 原图格式: xxx.jpg?sas_token
-  const [urlPart, queryPart] = thumbnailUrl.split('?');
-  const originalUrl = urlPart.replace('-thumb.', '.');
-  return queryPart ? `${originalUrl}?${queryPart}` : originalUrl;
-}
-
-// 检查是否是缩略图 URL
-function isThumbnailUrl(url: string): boolean {
-  return url.includes('-thumb.');
+// 解析图片 URL，提取缩略图和原图
+// 格式：xxx-thumb.jpg?sas#original=encoded_original_url
+function parseImageUrl(src: string): { thumbnailUrl: string; originalUrl: string | null } {
+  const hashIndex = src.indexOf('#original=');
+  if (hashIndex !== -1) {
+    const thumbnailUrl = src.substring(0, hashIndex);
+    const originalUrl = decodeURIComponent(src.substring(hashIndex + 10));
+    return { thumbnailUrl, originalUrl };
+  }
+  
+  // 旧格式：尝试从缩略图 URL 推断原图 URL（不过 SAS Token 不同，可能无法访问）
+  if (src.includes('-thumb.')) {
+    return { thumbnailUrl: src, originalUrl: null };
+  }
+  
+  return { thumbnailUrl: src, originalUrl: null };
 }
 
 // 渐进式图片组件
@@ -27,20 +31,27 @@ function ProgressiveImage({ src, alt }: { src: string; alt: string }) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
   
-  // 如果是缩略图，准备原图 URL
-  const isThumb = isThumbnailUrl(src);
-  const originalSrc = isThumb ? getOriginalImageUrl(src) : src;
-  const thumbnailSrc = src;
+  // 解析 URL 获取缩略图和原图
+  const { thumbnailUrl, originalUrl } = parseImageUrl(src);
+  const hasOriginal = !!originalUrl;
 
-  // 非缩略图：直接显示
-  if (!isThumb) {
+  // 图片样式：保持原始比例，限制最大尺寸
+  const imageStyle = {
+    maxWidth: "100%",
+    maxHeight: "80vh", // 限制最大高度，避免竖幅图片过长
+    width: "auto",
+    height: "auto",
+  };
+
+  // 没有原图：直接显示缩略图
+  if (!hasOriginal) {
     return (
-      <span className="block my-6">
+      <span className="block my-6 text-center">
         <img
-          src={src}
+          src={thumbnailUrl}
           alt={alt}
-          className="rounded-lg mx-auto max-w-full h-auto"
-          style={{ objectFit: "contain" }}
+          className="rounded-lg inline-block"
+          style={imageStyle}
         />
         {alt && (
           <span className="block text-center text-sm text-gray-500 mt-2">
@@ -51,28 +62,38 @@ function ProgressiveImage({ src, alt }: { src: string; alt: string }) {
     );
   }
 
-  // 缩略图：渐进式加载
+  // 确定当前显示的图片 URL
+  const currentSrc = isLoaded && !hasError ? originalUrl : thumbnailUrl;
+
+  // 有原图：渐进式加载
   return (
-    <span className="block my-6">
+    <span className="block my-6 text-center">
       {/* 显示当前应该展示的图片 */}
       <img
-        src={isLoaded && !hasError ? originalSrc : thumbnailSrc}
+        key={currentSrc} // 强制重新渲染
+        src={currentSrc}
         alt={alt}
-        className="rounded-lg mx-auto max-w-full h-auto transition-all duration-300"
+        className="rounded-lg inline-block transition-all duration-300"
         style={{ 
-          objectFit: "contain",
+          ...imageStyle,
           filter: isLoaded ? 'none' : 'blur(1px)',
         }}
       />
       
       {/* 隐藏的原图预加载 */}
-      {!isLoaded && (
+      {!isLoaded && !hasError && (
         <img
-          src={originalSrc}
+          src={originalUrl}
           alt=""
-          className="hidden"
-          onLoad={() => setIsLoaded(true)}
-          onError={() => setHasError(true)}
+          style={{ display: 'none' }}
+          onLoad={() => {
+            console.log('Original image loaded:', originalUrl);
+            setIsLoaded(true);
+          }}
+          onError={(e) => {
+            console.error('Original image failed to load:', originalUrl, e);
+            setHasError(true);
+          }}
         />
       )}
       

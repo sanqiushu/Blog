@@ -139,8 +139,8 @@ export default function BlogForm({ initialData, isEdit = false }: BlogFormProps)
       const data = await response.json();
 
       if (response.ok) {
-        // 在光标位置插入图片 Markdown
-        insertImageToContent(data.url, file.name);
+        // 在光标位置插入图片 Markdown，使用特殊格式包含原图 URL
+        insertImageToContent(data.thumbnailUrl, data.originalUrl, file.name);
       } else {
         alert(`上传失败: ${data.error || "未知错误"}`);
       }
@@ -156,8 +156,8 @@ export default function BlogForm({ initialData, isEdit = false }: BlogFormProps)
     }
   };
 
-  // 在内容中插入图片
-  const insertImageToContent = (url: string, altText: string) => {
+  // 在内容中插入图片（使用特殊格式存储缩略图和原图 URL）
+  const insertImageToContent = (thumbnailUrl: string, originalUrl: string, altText: string) => {
     const textarea = contentRef.current;
     if (!textarea) return;
 
@@ -165,8 +165,9 @@ export default function BlogForm({ initialData, isEdit = false }: BlogFormProps)
     const end = textarea.selectionEnd;
     const content = formData.content;
     
-    // 生成图片 Markdown
-    const imageMarkdown = `\n![${altText}](${url})\n`;
+    // 使用特殊格式：![alt](thumb_url#original=original_url)
+    // 渲染时会解析这个格式，先显示缩略图，再加载原图
+    const imageMarkdown = `\n![${altText}](${thumbnailUrl}#original=${encodeURIComponent(originalUrl)})\n`;
     
     // 在光标位置插入
     const newContent = content.substring(0, start) + imageMarkdown + content.substring(end);

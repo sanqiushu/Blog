@@ -245,11 +245,17 @@ async function compressImage(
   quality: number
 ): Promise<Buffer> {
   try {
-    const image = sharp(buffer);
+    // 使用 rotate() 自动根据 EXIF 方向旋转图片，确保竖幅图片正确显示
+    const image = sharp(buffer).rotate();
     const metadata = await image.metadata();
     
+    // 考虑 EXIF 方向后的实际尺寸
+    // orientation 5-8 表示图片被旋转了90度，宽高需要互换
+    const isRotated = metadata.orientation && metadata.orientation >= 5;
+    const actualWidth = isRotated ? metadata.height : metadata.width;
+    
     // 只有当图片宽度超过 maxWidth 时才压缩
-    const needsResize = metadata.width && metadata.width > maxWidth;
+    const needsResize = actualWidth && actualWidth > maxWidth;
     
     let pipeline = image;
     
@@ -278,12 +284,12 @@ async function compressImage(
   }
 }
 
-// 上传图片（返回缩略图 URL，同时存储原图）
+// 上传图片（返回缩略图和原图 URL）
 export async function uploadImage(
   file: Buffer,
   originalName: string,
   contentType: string
-): Promise<string> {
+): Promise<{ thumbnailUrl: string; originalUrl: string }> {
   try {
     const containerClient = await getImagesContainer();
     const baseName = generateImageName(originalName);
@@ -321,9 +327,11 @@ export async function uploadImage(
       },
     });
 
-    // 返回缩略图的 URL（用于博客文章显示）
-    // 原图可通过去掉 -thumb 后缀访问
-    return generateSasUrl(thumbnailBlobClient);
+    // 返回两个 URL，各自有自己的 SAS Token
+    return {
+      thumbnailUrl: generateSasUrl(thumbnailBlobClient),
+      originalUrl: generateSasUrl(originalBlobClient),
+    };
   } catch (error) {
     console.error("上传图片失败:", error);
     throw error;
@@ -355,7 +363,228 @@ export async function deleteImage(imageUrl: string): Promise<void> {
   }
 }
 
-// 获取所有图片列表
+// ============================================
+// 相册管理（支持文件夹）
+// ============================================
+
+const GALLERY_BLOB_NAME = "gallery.json";
+
+// 相册图片信息
+export interface GalleryImage {
+  id: string;
+  thumbnailUrl: string;
+  originalUrl: string;
+  fileName: string;
+  timestamp: number;
+}
+
+// 相册文件夹
+export interface GalleryFolder {
+  id: string;
+  name: string;
+  cover?: string;  // 封面图片 ID
+  images: GalleryImage[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+// 相册数据结构
+export interface GalleryData {
+  folders: GalleryFolder[];
+}
+
+// 读取相册数据
+export async function readGalleryData(): Promise<GalleryData> {
+  try {
+    const containerClient = await ensureContainer();
+    const blobClient = containerClient.getBlobClient(GALLERY_BLOB_NAME);
+    const blockBlobClient = blobClient.getBlockBlobClient();
+
+    const exists = await blobClient.exists();
+    if (!exists) {
+      const initialData: GalleryData = { folders: [] };
+      await blockBlobClient.upload(
+        JSON.stringify(initialData, null, 2),
+        Buffer.byteLength(JSON.stringify(initialData, null, 2))
+      );
+      return initialData;
+    }
+
+    const downloadResponse = await blockBlobClient.download(0);
+    const downloaded = await streamToBuffer(downloadResponse.readableStreamBody!);
+    return JSON.parse(downloaded.toString("utf-8"));
+  } catch (error) {
+    console.error("读取相册数据失败:", error);
+    return { folders: [] };
+  }
+}
+
+// 保存相册数据
+export async function writeGalleryData(data: GalleryData): Promise<void> {
+  try {
+    const containerClient = await ensureContainer();
+    const blockBlobClient = containerClient.getBlockBlobClient(GALLERY_BLOB_NAME);
+    const jsonData = JSON.stringify(data, null, 2);
+
+    await blockBlobClient.uploadData(Buffer.from(jsonData, "utf-8"), {
+      blobHTTPHeaders: { blobContentType: "application/json" },
+    });
+  } catch (error) {
+    console.error("保存相册数据失败:", error);
+    throw error;
+  }
+}
+
+// 创建文件夹
+export async function createGalleryFolder(name: string): Promise<GalleryFolder> {
+  const data = await readGalleryData();
+  
+  const folder: GalleryFolder = {
+    id: `folder-${Date.now()}`,
+    name,
+    images: [],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  
+  data.folders.push(folder);
+  await writeGalleryData(data);
+  
+  return folder;
+}
+
+// 删除文件夹
+export async function deleteGalleryFolder(folderId: string): Promise<void> {
+  const data = await readGalleryData();
+  const folder = data.folders.find(f => f.id === folderId);
+  
+  if (folder) {
+    // 删除文件夹中的所有图片
+    for (const image of folder.images) {
+      try {
+        await deleteImage(image.originalUrl);
+      } catch (e) {
+        console.error("删除图片失败:", e);
+      }
+    }
+    
+    // 从数据中移除文件夹
+    data.folders = data.folders.filter(f => f.id !== folderId);
+    await writeGalleryData(data);
+  }
+}
+
+// 重命名文件夹
+export async function renameGalleryFolder(folderId: string, newName: string): Promise<void> {
+  const data = await readGalleryData();
+  const folder = data.folders.find(f => f.id === folderId);
+  
+  if (folder) {
+    folder.name = newName;
+    folder.updatedAt = new Date().toISOString();
+    await writeGalleryData(data);
+  }
+}
+
+// 上传图片到文件夹
+export async function uploadImageToFolder(
+  folderId: string,
+  file: Buffer,
+  originalName: string,
+  contentType: string
+): Promise<GalleryImage> {
+  // 上传图片
+  const { thumbnailUrl, originalUrl } = await uploadImage(file, originalName, contentType);
+  
+  // 创建图片记录
+  const image: GalleryImage = {
+    id: `img-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
+    thumbnailUrl,
+    originalUrl,
+    fileName: originalName,
+    timestamp: Date.now(),
+  };
+  
+  // 添加到文件夹
+  const data = await readGalleryData();
+  const folder = data.folders.find(f => f.id === folderId);
+  
+  if (folder) {
+    folder.images.push(image);
+    folder.updatedAt = new Date().toISOString();
+    
+    // 如果是第一张图片，设为封面
+    if (!folder.cover) {
+      folder.cover = image.id;
+    }
+    
+    await writeGalleryData(data);
+  }
+  
+  return image;
+}
+
+// 从文件夹删除图片
+export async function deleteImageFromFolder(folderId: string, imageId: string): Promise<void> {
+  const data = await readGalleryData();
+  const folder = data.folders.find(f => f.id === folderId);
+  
+  if (folder) {
+    const image = folder.images.find(img => img.id === imageId);
+    
+    if (image) {
+      // 删除存储中的图片
+      await deleteImage(image.originalUrl);
+      
+      // 从文件夹中移除
+      folder.images = folder.images.filter(img => img.id !== imageId);
+      
+      // 如果删除的是封面，更新封面
+      if (folder.cover === imageId) {
+        folder.cover = folder.images[0]?.id;
+      }
+      
+      folder.updatedAt = new Date().toISOString();
+      await writeGalleryData(data);
+    }
+  }
+}
+
+// 设置文件夹封面
+export async function setFolderCover(folderId: string, imageId: string): Promise<void> {
+  const data = await readGalleryData();
+  const folder = data.folders.find(f => f.id === folderId);
+  
+  if (folder && folder.images.some(img => img.id === imageId)) {
+    folder.cover = imageId;
+    folder.updatedAt = new Date().toISOString();
+    await writeGalleryData(data);
+  }
+}
+
+// 获取文件夹列表（用于相册首页）
+export async function getGalleryFolders(): Promise<(GalleryFolder & { coverImage?: GalleryImage })[]> {
+  const data = await readGalleryData();
+  
+  return data.folders.map(folder => {
+    const coverImage = folder.cover 
+      ? folder.images.find(img => img.id === folder.cover)
+      : folder.images[0];
+    
+    return {
+      ...folder,
+      coverImage,
+    };
+  });
+}
+
+// 获取单个文件夹详情
+export async function getGalleryFolder(folderId: string): Promise<GalleryFolder | null> {
+  const data = await readGalleryData();
+  return data.folders.find(f => f.id === folderId) || null;
+}
+
+// 获取所有图片列表（简单版，用于其他用途）
 export async function listImages(): Promise<string[]> {
   try {
     const containerClient = await getImagesContainer();
@@ -370,5 +599,88 @@ export async function listImages(): Promise<string[]> {
   } catch (error) {
     console.error("获取图片列表失败:", error);
     return [];
+  }
+}
+
+// ============================================
+// 关于页面内容管理
+// ============================================
+
+const ABOUT_BLOB_NAME = "about.json";
+
+export interface AboutContent {
+  content: string;  // Markdown 内容
+  updatedAt: string;
+}
+
+// 默认的关于页面内容
+const DEFAULT_ABOUT_CONTENT: AboutContent = {
+  content: `## 欢迎来到我的博客
+
+这是一个分享技术见解、学习笔记和生活感悟的地方。我热衷于探索新技术，并通过写作的方式记录和分享我的学习历程。
+
+## 关注领域
+
+- 前端开发（React、Next.js、TypeScript）
+- Web 性能优化
+- 用户体验设计
+- 开源项目
+
+## 联系方式
+
+如果你想与我交流或合作，欢迎通过以下方式联系我：
+
+- GitHub: github.com/your-username
+- Email: your.email@example.com
+- Twitter: @your-handle`,
+  updatedAt: new Date().toISOString(),
+};
+
+// 读取关于页面内容
+export async function readAboutContent(): Promise<AboutContent> {
+  try {
+    const containerClient = await ensureContainer();
+    const blobClient = containerClient.getBlobClient(ABOUT_BLOB_NAME);
+    const blockBlobClient = blobClient.getBlockBlobClient();
+
+    const exists = await blobClient.exists();
+    if (!exists) {
+      // 如果不存在，创建默认内容
+      await blockBlobClient.upload(
+        JSON.stringify(DEFAULT_ABOUT_CONTENT, null, 2),
+        Buffer.byteLength(JSON.stringify(DEFAULT_ABOUT_CONTENT, null, 2))
+      );
+      return DEFAULT_ABOUT_CONTENT;
+    }
+
+    const downloadResponse = await blockBlobClient.download(0);
+    const downloaded = await streamToBuffer(downloadResponse.readableStreamBody!);
+    return JSON.parse(downloaded.toString("utf-8"));
+  } catch (error) {
+    console.error("读取关于页面内容失败:", error);
+    return DEFAULT_ABOUT_CONTENT;
+  }
+}
+
+// 更新关于页面内容
+export async function updateAboutContent(content: string): Promise<AboutContent> {
+  try {
+    const containerClient = await ensureContainer();
+    const blockBlobClient = containerClient.getBlockBlobClient(ABOUT_BLOB_NAME);
+    
+    const aboutContent: AboutContent = {
+      content,
+      updatedAt: new Date().toISOString(),
+    };
+    
+    const data = JSON.stringify(aboutContent, null, 2);
+    await blockBlobClient.uploadData(Buffer.from(data, "utf-8"), {
+      blobHTTPHeaders: { blobContentType: "application/json" },
+    });
+    
+    return aboutContent;
+  } catch (error) {
+    console.error("更新关于页面内容失败:", error);
+    throw error;
   }
 }

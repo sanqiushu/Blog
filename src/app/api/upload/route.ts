@@ -38,12 +38,14 @@ export async function POST(request: NextRequest) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // 上传到 Azure Blob Storage
-    const imageUrl = await uploadImage(buffer, file.name, file.type);
+    // 上传到 Azure Blob Storage（返回缩略图和原图 URL）
+    const { thumbnailUrl, originalUrl } = await uploadImage(buffer, file.name, file.type);
 
     return NextResponse.json({
       success: true,
-      url: imageUrl,
+      url: thumbnailUrl,        // 用于预览
+      thumbnailUrl,             // 缩略图 URL
+      originalUrl,              // 原图 URL（有独立的 SAS Token）
       message: "图片上传成功",
     });
   } catch (error) {

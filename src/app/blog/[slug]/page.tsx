@@ -31,12 +31,22 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
       
       <main className="flex-1">
         <article className="mx-auto max-w-4xl px-4 py-12">
-          <Link
-            href="/"
-            className="mb-8 inline-flex items-center text-sm text-gray-600 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-          >
-            ← 返回首页
-          </Link>
+          <nav className="mb-8">
+            <Link
+              href="/"
+              className="group inline-flex items-center gap-2 text-sm font-medium text-gray-500 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+            >
+              <svg 
+                className="h-4 w-4 transition-transform group-hover:-translate-x-1" 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              返回首页
+            </Link>
+          </nav>
           
           <header className="mb-8">
             <div className="flex items-start justify-between gap-4">
