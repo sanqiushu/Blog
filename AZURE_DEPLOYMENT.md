@@ -90,7 +90,79 @@ az ad sp create-for-rbac \
    - **Secret**: 粘贴上一步的完整 JSON 输出
 4. 点击 **Add secret**
 
-### 4. 更新工作流配置
+### 4. 创建 Azure Storage Account
+
+博客数据存储在 Azure Blob Storage 中，需要创建 Storage Account：
+
+```bash
+# 检查 Azure CLI 登录状态
+az account show --query "{name:name, id:id}" -o table
+
+# 如果未登录，先登录
+az login --tenant YOUR_TENANT_ID --use-device-code
+
+# 查看现有资源组
+az group list --query "[].name" -o table
+
+# 创建 Storage Account（名称需全局唯一，只能用小写字母和数字）
+az storage account create \
+  --name "YOUR_STORAGE_ACCOUNT_NAME" \
+  --resource-group "MyBlogResourceGroup" \
+  --location "eastasia" \
+  --sku "Standard_LRS" \
+  --kind "StorageV2" \
+  --output table
+
+# 获取连接字符串
+az storage account show-connection-string \
+  --name "YOUR_STORAGE_ACCOUNT_NAME" \
+  --resource-group "MyBlogResourceGroup" \
+  --query "connectionString" \
+  --output tsv
+```
+
+### 5. 配置 Storage 连接字符串
+
+将获取到的连接字符串添加到 GitHub Secret：
+
+**方法一：使用 GitHub CLI（推荐）**
+
+```bash
+# 安装 GitHub CLI（如果未安装）
+brew install gh
+
+# 登录 GitHub
+gh auth login
+
+# 添加 Secret
+gh secret set AZURE_STORAGE_CONNECTION_STRING \
+  --repo YOUR_GITHUB_USERNAME/YOUR_REPO_NAME \
+  --body '你的连接字符串'
+```
+
+**方法二：通过 GitHub 网页界面**
+
+1. 访问仓库的 **Settings > Secrets and variables > Actions**
+2. 点击 **New repository secret**
+3. 添加 Secret：
+   - **Name**: `AZURE_STORAGE_CONNECTION_STRING`
+   - **Secret**: 粘贴上一步获取的连接字符串
+4. 点击 **Add secret**
+
+同时添加到本地 `.env.local` 文件用于开发：
+
+```bash
+echo 'AZURE_STORAGE_CONNECTION_STRING="你的连接字符串"' >> .env.local
+```
+
+### 6. 迁移本地数据到 Azure
+
+```bash
+# 运行迁移脚本
+npx tsx scripts/migrate-to-azure.ts
+```
+
+### 7. 更新工作流配置
 
 编辑 `.github/workflows/azure-app-service.yml`：
 
@@ -100,7 +172,7 @@ env:
   AZURE_WEBAPP_NAME: "YOUR_UNIQUE_NAME"  # 改为你的 Web App 名称
 ```
 
-### 5. 触发部署
+### 8. 触发部署
 
 推送代码到 `main` 分支即可触发自动部署：
 
