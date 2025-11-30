@@ -112,12 +112,6 @@ export default function BlogForm({ initialData, isEdit = false }: BlogFormProps)
       return;
     }
 
-    // 验证文件大小（5MB）
-    if (file.size > 5 * 1024 * 1024) {
-      alert("图片大小不能超过 5MB");
-      return;
-    }
-
     setUploading(true);
     try {
       const formData = new FormData();
@@ -126,6 +120,7 @@ export default function BlogForm({ initialData, isEdit = false }: BlogFormProps)
       const response = await fetch("/api/upload", {
         method: "POST",
         body: formData,
+        credentials: "include", // 确保发送 cookies
       });
 
       const data = await response.json();

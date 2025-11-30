@@ -1,15 +1,14 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { uploadImage } from "@/lib/storage";
 import { isAuthenticated } from "@/lib/auth";
 
 // 允许的图片类型
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
-const MAX_SIZE = 5 * 1024 * 1024; // 5MB
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     // 验证身份
-    const authenticated = await isAuthenticated();
+    const authenticated = await isAuthenticated(request);
     if (!authenticated) {
       return NextResponse.json(
         { error: "未授权访问" },
@@ -31,14 +30,6 @@ export async function POST(request: Request) {
     if (!ALLOWED_TYPES.includes(file.type)) {
       return NextResponse.json(
         { error: "只支持 JPG、PNG、GIF、WebP 格式的图片" },
-        { status: 400 }
-      );
-    }
-
-    // 验证文件大小
-    if (file.size > MAX_SIZE) {
-      return NextResponse.json(
-        { error: "图片大小不能超过 5MB" },
         { status: 400 }
       );
     }
