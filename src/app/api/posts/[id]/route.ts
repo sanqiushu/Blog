@@ -3,6 +3,10 @@ import { getPostById, updatePost, deletePost } from "@/lib/storage";
 import { isAuthenticated } from "@/lib/auth";
 import { sanitizeSlug } from "@/lib/slug-generator";
 
+// 禁用缓存
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 interface RouteParams {
   params: Promise<{
     id: string;

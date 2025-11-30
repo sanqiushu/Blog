@@ -3,6 +3,10 @@ import { readPosts, createPost } from "@/lib/storage";
 import { isAuthenticated } from "@/lib/auth";
 import { sanitizeSlug } from "@/lib/slug-generator";
 
+// 禁用缓存，确保每次请求都读取最新数据
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 // GET - 获取所有博客文章（公开访问）
 export async function GET() {
   try {

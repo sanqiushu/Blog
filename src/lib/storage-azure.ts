@@ -62,7 +62,10 @@ export async function writePosts(posts: BlogPost[]): Promise<void> {
     const blockBlobClient = containerClient.getBlockBlobClient(BLOB_NAME);
 
     const data = JSON.stringify(posts, null, 2);
-    await blockBlobClient.upload(data, Buffer.byteLength(data), {
+    const buffer = Buffer.from(data, "utf-8");
+    
+    // 使用 uploadData 方法，它会自动覆盖已存在的 blob
+    await blockBlobClient.uploadData(buffer, {
       blobHTTPHeaders: {
         blobContentType: "application/json",
       },

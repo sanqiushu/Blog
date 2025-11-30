@@ -4,17 +4,14 @@ import { readPosts } from "@/lib/storage";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 
+// 强制动态渲染，禁用缓存
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 interface BlogPostPageProps {
   params: Promise<{
     slug: string;
   }>;
-}
-
-export async function generateStaticParams() {
-  const posts = await readPosts();
-  return posts.map((post) => ({
-    slug: post.slug,
-  }));
 }
 
 export default async function BlogPostPage({ params }: BlogPostPageProps) {

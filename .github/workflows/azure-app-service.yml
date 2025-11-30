@@ -76,6 +76,7 @@ jobs:
           app-settings-json: |
             [
               { "name": "ADMIN_PASSWORD", "value": "${{ secrets.ADMIN_PASSWORD }}", "slotSetting": false },
+              { "name": "AZURE_STORAGE_CONNECTION_STRING", "value": "${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}", "slotSetting": false },
               { "name": "SCM_DO_BUILD_DURING_DEPLOYMENT", "value": "false", "slotSetting": false },
               { "name": "PORT", "value": "8080", "slotSetting": false },
               { "name": "HOSTNAME", "value": "0.0.0.0", "slotSetting": false }
