@@ -66,6 +66,15 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
+      - name: Configure App Settings
+        uses: azure/appservice-settings@v1
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          app-settings-json: |
+            [
+              { "name": "ADMIN_PASSWORD", "value": "${{ secrets.ADMIN_PASSWORD }}", "slotSetting": false }
+            ]
+
       - name: Deploy to Azure Web App
         id: deploy
         uses: azure/webapps-deploy@v2
