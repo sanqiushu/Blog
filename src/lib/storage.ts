@@ -234,7 +234,7 @@ function generateImageName(originalName: string): string {
 
 // 图片压缩配置
 const IMAGE_SIZES = {
-  original: { width: 1920, quality: 85 },  // 原图最大宽度
+  original: { width: 1920, quality: 100 },  // 原图最大宽度，不压缩质量
   thumbnail: { width: 800, quality: 80 },   // 缩略图（用于博客列表和文章内）
 };
 
