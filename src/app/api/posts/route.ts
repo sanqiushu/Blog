@@ -1,16 +1,39 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { readPosts, createPost } from "@/lib/storage";
 import { isAuthenticated } from "@/lib/auth";
 import { sanitizeSlug } from "@/lib/slug-generator";
+import { 
+  getCache, 
+  setCache, 
+  deleteCache, 
+  shouldSkipCache, 
+  CACHE_KEYS 
+} from "@/lib/redis";
 
 // 禁用缓存，确保每次请求都读取最新数据
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 // GET - 获取所有博客文章（公开访问）
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const skipCache = shouldSkipCache(request);
+    
+    // 如果不跳过缓存，先尝试从缓存获取
+    if (!skipCache) {
+      const cachedPosts = await getCache(CACHE_KEYS.POSTS_LIST);
+      if (cachedPosts) {
+        return NextResponse.json(cachedPosts);
+      }
+    }
+    
     const posts = await readPosts();
+    
+    // 设置缓存（1小时过期）
+    if (!skipCache) {
+      await setCache(CACHE_KEYS.POSTS_LIST, posts);
+    }
+    
     return NextResponse.json(posts);
   } catch {
     return NextResponse.json(
@@ -21,7 +44,7 @@ export async function GET() {
 }
 
 // POST - 创建新博客文章（需要认证）
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     // 验证身份
     const authenticated = await isAuthenticated();
@@ -52,6 +75,9 @@ export async function POST(request: Request) {
       coverImage: data.coverImage,
       readTime: data.readTime,
     });
+    
+    // 清除文章列表缓存
+    await deleteCache(CACHE_KEYS.POSTS_LIST);
     
     return NextResponse.json(newPost, { status: 201 });
   } catch (error) {

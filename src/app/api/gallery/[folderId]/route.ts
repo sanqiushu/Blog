@@ -6,6 +6,13 @@ import {
   setFolderCover,
 } from "@/lib/storage";
 import { isAuthenticated } from "@/lib/auth";
+import { 
+  getCache, 
+  setCache, 
+  deleteCache, 
+  shouldSkipCache, 
+  CACHE_KEYS 
+} from "@/lib/redis";
 
 interface RouteParams {
   params: Promise<{ folderId: string }>;
@@ -15,13 +22,30 @@ interface RouteParams {
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const { folderId } = await params;
+    const skipCache = shouldSkipCache(request);
+    
+    // 如果不跳过缓存，先尝试从缓存获取
+    if (!skipCache) {
+      const cachedFolder = await getCache(CACHE_KEYS.GALLERY_FOLDER(folderId));
+      if (cachedFolder) {
+        return NextResponse.json(cachedFolder);
+      }
+    }
+    
     const folder = await getGalleryFolder(folderId);
     
     if (!folder) {
       return NextResponse.json({ error: "文件夹不存在" }, { status: 404 });
     }
     
-    return NextResponse.json({ folder });
+    const response = { folder };
+    
+    // 设置缓存（1小时过期）
+    if (!skipCache) {
+      await setCache(CACHE_KEYS.GALLERY_FOLDER(folderId), response);
+    }
+    
+    return NextResponse.json(response);
   } catch (error) {
     console.error("获取文件夹详情失败:", error);
     return NextResponse.json(
@@ -60,6 +84,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const buffer = Buffer.from(bytes);
 
     const image = await uploadImageToFolder(folderId, buffer, file.name, file.type);
+    
+    // 清除相关缓存
+    await deleteCache(CACHE_KEYS.GALLERY_FOLDER(folderId));
+    await deleteCache(CACHE_KEYS.GALLERY_FOLDERS);
+    
     return NextResponse.json({ success: true, image });
   } catch (error) {
     console.error("上传图片失败:", error);
@@ -80,6 +109,11 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     
     if (action === "setCover" && imageId) {
       await setFolderCover(folderId, imageId);
+      
+      // 清除相关缓存
+      await deleteCache(CACHE_KEYS.GALLERY_FOLDER(folderId));
+      await deleteCache(CACHE_KEYS.GALLERY_FOLDERS);
+      
       return NextResponse.json({ success: true });
     }
     
@@ -106,6 +140,11 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     await deleteImageFromFolder(folderId, imageId);
+    
+    // 清除相关缓存
+    await deleteCache(CACHE_KEYS.GALLERY_FOLDER(folderId));
+    await deleteCache(CACHE_KEYS.GALLERY_FOLDERS);
+    
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("删除图片失败:", error);

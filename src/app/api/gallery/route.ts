@@ -6,12 +6,37 @@ import {
   renameGalleryFolder,
 } from "@/lib/storage";
 import { isAuthenticated } from "@/lib/auth";
+import { 
+  getCache, 
+  setCache, 
+  deleteCache, 
+  deleteCacheByPattern,
+  shouldSkipCache, 
+  CACHE_KEYS 
+} from "@/lib/redis";
 
 // 获取所有文件夹
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const skipCache = shouldSkipCache(request);
+    
+    // 如果不跳过缓存，先尝试从缓存获取
+    if (!skipCache) {
+      const cachedFolders = await getCache(CACHE_KEYS.GALLERY_FOLDERS);
+      if (cachedFolders) {
+        return NextResponse.json(cachedFolders);
+      }
+    }
+    
     const folders = await getGalleryFolders();
-    return NextResponse.json({ folders });
+    const response = { folders };
+    
+    // 设置缓存（1小时过期）
+    if (!skipCache) {
+      await setCache(CACHE_KEYS.GALLERY_FOLDERS, response);
+    }
+    
+    return NextResponse.json(response);
   } catch (error) {
     console.error("获取相册列表失败:", error);
     return NextResponse.json(
@@ -36,6 +61,10 @@ export async function POST(request: NextRequest) {
     }
 
     const folder = await createGalleryFolder(name.trim());
+    
+    // 清除相册列表缓存
+    await deleteCache(CACHE_KEYS.GALLERY_FOLDERS);
+    
     return NextResponse.json({ success: true, folder });
   } catch (error) {
     console.error("创建文件夹失败:", error);
@@ -58,6 +87,11 @@ export async function PUT(request: NextRequest) {
     }
 
     await renameGalleryFolder(folderId, name.trim());
+    
+    // 清除相册缓存
+    await deleteCache(CACHE_KEYS.GALLERY_FOLDERS);
+    await deleteCache(CACHE_KEYS.GALLERY_FOLDER(folderId));
+    
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("重命名文件夹失败:", error);
@@ -80,6 +114,11 @@ export async function DELETE(request: NextRequest) {
     }
 
     await deleteGalleryFolder(folderId);
+    
+    // 清除相册缓存
+    await deleteCache(CACHE_KEYS.GALLERY_FOLDERS);
+    await deleteCacheByPattern("gallery:folder:*");
+    
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("删除文件夹失败:", error);

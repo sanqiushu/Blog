@@ -53,11 +53,6 @@ function ProgressiveImage({ src, alt }: { src: string; alt: string }) {
           className="rounded-lg inline-block"
           style={imageStyle}
         />
-        {alt && (
-          <span className="block text-center text-sm text-gray-500 mt-2">
-            {alt}
-          </span>
-        )}
       </span>
     );
   }
@@ -101,13 +96,6 @@ function ProgressiveImage({ src, alt }: { src: string; alt: string }) {
       {!isLoaded && !hasError && (
         <span className="block text-center text-xs text-gray-400 mt-1">
           正在加载高清图片...
-        </span>
-      )}
-      
-      {/* 图片说明 */}
-      {alt && (
-        <span className="block text-center text-sm text-gray-500 mt-2">
-          {alt}
         </span>
       )}
     </span>

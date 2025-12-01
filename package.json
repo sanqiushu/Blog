@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@azure/storage-blob": "^12.29.1",
+    "ioredis": "^5.8.2",
     "next": "16.0.3",
     "react": "19.2.0",
     "react-dom": "19.2.0",
@@ -25,6 +26,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/ioredis": "^4.28.10",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
