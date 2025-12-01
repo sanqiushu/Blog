@@ -69,21 +69,6 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Get Redis URL
-        id: redis
-        run: |
-          # 获取 Redis 主机名和访问密钥
-          REDIS_HOST=$(az redis show --name chengdezhi-redis --resource-group chengdezhi_group --query "hostName" -o tsv 2>/dev/null || echo "")
-          if [ -n "$REDIS_HOST" ]; then
-            REDIS_KEY=$(az redis list-keys --name chengdezhi-redis --resource-group chengdezhi_group --query "primaryKey" -o tsv)
-            REDIS_URL="rediss://:${REDIS_KEY}@${REDIS_HOST}:6380"
-            echo "REDIS_URL=${REDIS_URL}" >> $GITHUB_OUTPUT
-            echo "Redis URL configured successfully"
-          else
-            echo "REDIS_URL=" >> $GITHUB_OUTPUT
-            echo "Redis not found, skipping cache configuration"
-          fi
-
       - name: Configure App Settings
         uses: azure/appservice-settings@v1
         with:
@@ -92,7 +77,7 @@ jobs:
             [
               { "name": "ADMIN_PASSWORD", "value": "${{ secrets.ADMIN_PASSWORD }}", "slotSetting": false },
               { "name": "AZURE_STORAGE_CONNECTION_STRING", "value": "${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}", "slotSetting": false },
-              { "name": "REDIS_URL", "value": "${{ steps.redis.outputs.REDIS_URL }}", "slotSetting": false },
+              { "name": "REDIS_URL", "value": "${{ secrets.REDIS_URL }}", "slotSetting": false },
               { "name": "SCM_DO_BUILD_DURING_DEPLOYMENT", "value": "false", "slotSetting": false },
               { "name": "PORT", "value": "8080", "slotSetting": false },
               { "name": "HOSTNAME", "value": "0.0.0.0", "slotSetting": false }
