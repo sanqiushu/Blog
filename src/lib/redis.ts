@@ -92,7 +92,7 @@ export function shouldSkipCache(request: Request | string): boolean {
   try {
     const url = typeof request === "string" ? request : request.url;
     const urlObj = new URL(url);
-    return urlObj.searchParams.get("fight") === "skipCache";
+    return urlObj.searchParams.get("flight") === "skipCache";
   } catch {
     return false;
   }
