@@ -7,8 +7,6 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "init-data": "tsx scripts/init-data.ts",
-    "migrate-to-azure": "tsx scripts/migrate-to-azure.ts",
     "azurite": "azurite --silent --location ./azurite --debug ./azurite/debug.log"
   },
   "engines": {

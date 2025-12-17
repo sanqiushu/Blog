@@ -4,6 +4,7 @@ import {
   uploadImageToFolder,
   deleteImageFromFolder,
   setFolderCover,
+  reorderImagesInFolder,
 } from "@/lib/storage";
 import { isAuthenticated } from "@/lib/auth";
 import { 
@@ -100,7 +101,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
 }
 
-// 更新文件夹（设置封面）
+// 更新文件夹（设置封面、调整图片顺序）
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
     const authenticated = await isAuthenticated(request);
@@ -109,10 +110,20 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     const { folderId } = await params;
-    const { action, imageId } = await request.json();
+    const { action, imageId, imageIds } = await request.json();
     
     if (action === "setCover" && imageId) {
       await setFolderCover(folderId, imageId);
+      
+      // 清除相关缓存
+      await deleteCache(CACHE_KEYS.GALLERY_FOLDER(folderId));
+      await deleteCache(CACHE_KEYS.GALLERY_FOLDERS);
+      
+      return NextResponse.json({ success: true });
+    }
+    
+    if (action === "reorder" && Array.isArray(imageIds)) {
+      await reorderImagesInFolder(folderId, imageIds);
       
       // 清除相关缓存
       await deleteCache(CACHE_KEYS.GALLERY_FOLDER(folderId));

@@ -211,3 +211,37 @@ export async function getGalleryFolder(
   const data = await readGalleryData();
   return data.folders.find((f) => f.id === folderId) || null;
 }
+
+// 调整文件夹中图片的顺序
+export async function reorderImagesInFolder(
+  folderId: string,
+  imageIds: string[]
+): Promise<void> {
+  const data = await readGalleryData();
+  const folder = data.folders.find((f) => f.id === folderId);
+
+  if (folder) {
+    // 创建一个映射来快速查找图片
+    const imageMap = new Map(folder.images.map((img) => [img.id, img]));
+    
+    // 按照新顺序重新排列图片
+    const reorderedImages: GalleryImage[] = [];
+    for (const id of imageIds) {
+      const image = imageMap.get(id);
+      if (image) {
+        reorderedImages.push(image);
+      }
+    }
+    
+    // 确保所有图片都被包含（防止传入的 imageIds 不完整）
+    for (const image of folder.images) {
+      if (!imageIds.includes(image.id)) {
+        reorderedImages.push(image);
+      }
+    }
+    
+    folder.images = reorderedImages;
+    folder.updatedAt = new Date().toISOString();
+    await writeGalleryData(data);
+  }
+}

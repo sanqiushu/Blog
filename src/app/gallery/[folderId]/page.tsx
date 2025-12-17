@@ -5,196 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-
-interface GalleryImage {
-  id: string;
-  thumbnailUrl: string;
-  originalUrl: string;
-  fileName: string;
-  timestamp: number;
-}
-
-interface GalleryFolder {
-  id: string;
-  name: string;
-  cover?: string;
-  images: GalleryImage[];
-  createdAt: string;
-  updatedAt: string;
-}
-
-// 渐进式加载的图片组件
-function ProgressiveImage({ 
-  image, 
-  onClick 
-}: { 
-  image: GalleryImage; 
-  onClick: () => void;
-}) {
-  const [isLoaded, setIsLoaded] = useState(false);
-
-  return (
-    <>
-      <img
-        src={isLoaded ? image.originalUrl : image.thumbnailUrl}
-        alt={image.fileName}
-        className={`h-full w-full object-cover transition-all duration-300 group-hover:scale-105 cursor-pointer ${
-          isLoaded ? '' : 'blur-[1px]'
-        }`}
-        loading="lazy"
-        onClick={onClick}
-      />
-      {!isLoaded && (
-        <img
-          src={image.originalUrl}
-          alt=""
-          className="hidden"
-          onLoad={() => setIsLoaded(true)}
-        />
-      )}
-    </>
-  );
-}
-
-// 全屏预览组件
-function FullscreenPreview({ 
-  images,
-  currentIndex,
-  onClose,
-  onNavigate
-}: { 
-  images: GalleryImage[];
-  currentIndex: number;
-  onClose: () => void;
-  onNavigate: (index: number) => void;
-}) {
-  const [isLoaded, setIsLoaded] = useState(false);
-  const image = images[currentIndex];
-  
-  const hasPrev = currentIndex > 0;
-  const hasNext = currentIndex < images.length - 1;
-
-  const goPrev = useCallback(() => {
-    if (hasPrev) {
-      setIsLoaded(false);
-      onNavigate(currentIndex - 1);
-    }
-  }, [hasPrev, currentIndex, onNavigate]);
-
-  const goNext = useCallback(() => {
-    if (hasNext) {
-      setIsLoaded(false);
-      onNavigate(currentIndex + 1);
-    }
-  }, [hasNext, currentIndex, onNavigate]);
-
-  // 键盘导航
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft') {
-        goPrev();
-      } else if (e.key === 'ArrowRight') {
-        goNext();
-      } else if (e.key === 'Escape') {
-        onClose();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [goPrev, goNext, onClose]);
-
-  // 点击图片左右侧切换
-  const handleImageClick = (e: React.MouseEvent<HTMLImageElement>) => {
-    e.stopPropagation();
-    const rect = e.currentTarget.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
-    const imageWidth = rect.width;
-    
-    if (clickX < imageWidth / 2) {
-      goPrev();
-    } else {
-      goNext();
-    }
-  };
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
-      onClick={onClose}
-    >
-      {/* 关闭按钮 */}
-      <button
-        className="absolute top-4 right-4 p-2 text-white/70 hover:text-white transition-colors z-10"
-        onClick={onClose}
-      >
-        <svg className="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-        </svg>
-      </button>
-
-      {/* 上一张按钮 */}
-      {hasPrev && (
-        <button
-          className="absolute left-4 top-1/2 -translate-y-1/2 p-3 text-white/70 hover:text-white bg-black/30 hover:bg-black/50 rounded-full transition-all z-10"
-          onClick={(e) => {
-            e.stopPropagation();
-            goPrev();
-          }}
-        >
-          <svg className="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
-      )}
-
-      {/* 下一张按钮 */}
-      {hasNext && (
-        <button
-          className="absolute right-4 top-1/2 -translate-y-1/2 p-3 text-white/70 hover:text-white bg-black/30 hover:bg-black/50 rounded-full transition-all z-10"
-          onClick={(e) => {
-            e.stopPropagation();
-            goNext();
-          }}
-        >
-          <svg className="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
-      )}
-      
-      {/* 图片 */}
-      <img
-        src={isLoaded ? image.originalUrl : image.thumbnailUrl}
-        alt="预览"
-        className={`max-h-[90vh] max-w-[90vw] object-contain transition-all duration-300 cursor-pointer ${
-          isLoaded ? '' : 'blur-sm'
-        }`}
-        onClick={handleImageClick}
-      />
-      
-      {/* 加载提示 */}
-      {!isLoaded && (
-        <>
-          <img
-            src={image.originalUrl}
-            alt=""
-            className="hidden"
-            onLoad={() => setIsLoaded(true)}
-          />
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/70 text-sm">
-            正在加载高清图片...
-          </div>
-        </>
-      )}
-
-      {/* 图片计数器 */}
-      <div className="absolute bottom-4 right-4 px-3 py-1 bg-black/50 rounded-full text-white/70 text-sm">
-        {currentIndex + 1} / {images.length}
-      </div>
-    </div>
-  );
-}
+import { FullscreenPreview, ImageGrid } from "@/components/gallery";
+import { GalleryFolder } from "@/types/gallery";
 
 export default function FolderPage() {
   const params = useParams();
@@ -208,6 +20,11 @@ export default function FolderPage() {
   const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // 拖拽相关状态
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [isReordering, setIsReordering] = useState(false);
 
   // 加载文件夹
   const loadFolder = useCallback(async () => {
@@ -321,6 +138,80 @@ export default function FolderPage() {
     }
   };
 
+  // 拖拽开始
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    if (!isAdmin) return;
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', index.toString());
+  };
+
+  // 拖拽经过
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (!isAdmin || draggedIndex === null) return;
+    e.dataTransfer.dropEffect = 'move';
+    if (index !== dragOverIndex) {
+      setDragOverIndex(index);
+    }
+  };
+
+  // 拖拽离开
+  const handleDragLeave = () => {
+    setDragOverIndex(null);
+  };
+
+  // 拖拽结束
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
+
+  // 放置图片
+  const handleDrop = async (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault();
+    if (!isAdmin || draggedIndex === null || !folder) return;
+    
+    if (draggedIndex === dropIndex) {
+      setDraggedIndex(null);
+      setDragOverIndex(null);
+      return;
+    }
+
+    // 创建新的图片顺序
+    const newImages = [...folder.images];
+    const [draggedImage] = newImages.splice(draggedIndex, 1);
+    newImages.splice(dropIndex, 0, draggedImage);
+
+    // 立即更新本地状态以获得流畅的用户体验
+    setFolder({ ...folder, images: newImages });
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+
+    // 保存新顺序到服务器
+    setIsReordering(true);
+    try {
+      const imageIds = newImages.map(img => img.id);
+      const response = await fetch(`/api/gallery/${folderId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reorder", imageIds }),
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        // 如果保存失败，恢复原来的顺序
+        await loadFolder();
+        console.error("保存顺序失败");
+      }
+    } catch (error) {
+      console.error("保存顺序失败:", error);
+      await loadFolder();
+    } finally {
+      setIsReordering(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex min-h-screen flex-col bg-gray-50 dark:bg-black">
@@ -402,85 +293,23 @@ export default function FolderPage() {
             )}
           </div>
           
-          {folder.images.length === 0 ? (
-            <div className="text-center py-20">
-              <svg className="mx-auto h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              <p className="mt-4 text-gray-500 dark:text-gray-400">
-                相册还没有图片
-              </p>
-              {isAdmin && (
-                <p className="mt-2 text-sm text-gray-400">
-                  点击上方「上传图片」按钮添加图片
-                </p>
-              )}
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-              {folder.images.map((image, index) => (
-                <div
-                  key={image.id}
-                  className="group relative aspect-square overflow-hidden rounded-lg bg-gray-200 dark:bg-gray-800"
-                >
-                  <ProgressiveImage 
-                    image={image} 
-                    onClick={() => setSelectedImageIndex(index)} 
-                  />
-                  
-                  {/* 封面标记 */}
-                  {folder.cover === image.id && (
-                    <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/60 rounded text-xs text-white">
-                      封面
-                    </div>
-                  )}
-                  
-                  {/* 悬停遮罩 */}
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors pointer-events-none" />
-                  
-                  {/* 操作按钮 */}
-                  {isAdmin && (
-                    <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      {folder.cover !== image.id && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleSetCover(image.id);
-                          }}
-                          className="p-1.5 rounded-full bg-black/50 text-white hover:bg-blue-600 transition-colors"
-                          title="设为封面"
-                        >
-                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                          </svg>
-                        </button>
-                      )}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDelete(image.id);
-                        }}
-                        disabled={deleting === image.id}
-                        className="p-1.5 rounded-full bg-black/50 text-white hover:bg-red-600 transition-colors disabled:opacity-50"
-                        title="删除图片"
-                      >
-                        {deleting === image.id ? (
-                          <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                          </svg>
-                        ) : (
-                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        )}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
+          <ImageGrid
+            images={folder.images}
+            coverId={folder.cover}
+            isAdmin={isAdmin}
+            draggedIndex={draggedIndex}
+            dragOverIndex={dragOverIndex}
+            deletingId={deleting}
+            isReordering={isReordering}
+            onImageClick={setSelectedImageIndex}
+            onSetCover={handleSetCover}
+            onDelete={handleDelete}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDragEnd={handleDragEnd}
+            onDrop={handleDrop}
+          />
         </div>
       </main>
       
