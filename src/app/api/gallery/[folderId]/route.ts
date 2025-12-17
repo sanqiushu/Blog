@@ -14,6 +14,10 @@ import {
   CACHE_KEYS 
 } from "@/lib/redis";
 
+// 禁用 Next.js 路由缓存，确保每次请求都获取最新数据
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 interface RouteParams {
   params: Promise<{ folderId: string }>;
 }

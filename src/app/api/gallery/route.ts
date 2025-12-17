@@ -15,6 +15,10 @@ import {
   CACHE_KEYS 
 } from "@/lib/redis";
 
+// 禁用 Next.js 路由缓存，确保每次请求都获取最新数据
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 // 获取所有文件夹
 export async function GET(request: NextRequest) {
   try {
