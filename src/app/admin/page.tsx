@@ -16,7 +16,7 @@ export default function AdminPage() {
 
   const fetchPosts = useCallback(async () => {
     try {
-      const response = await fetch("/api/posts");
+      const response = await fetch("/api/posts?includeDrafts=true");
       const data = await response.json();
       setPosts(data);
     } catch (error) {
@@ -135,6 +135,9 @@ export default function AdminPage() {
                       标题
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                      状态
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                       作者
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
@@ -156,8 +159,19 @@ export default function AdminPage() {
                           {post.title}
                         </div>
                         <div className="text-sm text-gray-500 dark:text-gray-400">
-                          {post.excerpt.substring(0, 50)}...
+                          {post.excerpt?.substring(0, 50) || '暂无摘要'}...
                         </div>
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-4">
+                        {post.isDraft ? (
+                          <span className="inline-flex rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
+                            草稿
+                          </span>
+                        ) : (
+                          <span className="inline-flex rounded-full bg-green-100 px-2 py-1 text-xs font-semibold text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                            已发布
+                          </span>
+                        )}
                       </td>
                       <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-900 dark:text-gray-300">
                         {post.author}
@@ -184,13 +198,15 @@ export default function AdminPage() {
                       </td>
                       <td className="w-48 whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
                         <div className="flex justify-end gap-3">
-                          <Link
-                            href={`/blog/${post.slug}`}
-                            className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                            target="_blank"
-                          >
-                            查看
-                          </Link>
+                          {!post.isDraft && (
+                            <Link
+                              href={`/blog/${post.slug}`}
+                              className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                              target="_blank"
+                            >
+                              查看
+                            </Link>
+                          )}
                           <Link
                             href={`/admin/edit/${post.id}`}
                             className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300"

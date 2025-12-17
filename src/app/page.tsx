@@ -9,7 +9,9 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export default async function Home() {
-  const blogPosts = await readPosts();
+  const allPosts = await readPosts();
+  // 只显示已发布的文章，不显示草稿
+  const blogPosts = allPosts.filter(post => !post.isDraft);
   
   return (
     <div className="flex min-h-screen flex-col bg-gray-50 dark:bg-black">

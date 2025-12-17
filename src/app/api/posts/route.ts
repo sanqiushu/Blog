@@ -18,20 +18,28 @@ export const revalidate = 0;
 export async function GET(request: NextRequest) {
   try {
     const skipCache = shouldSkipCache(request);
+    const url = new URL(request.url);
+    const includeDrafts = url.searchParams.get('includeDrafts') === 'true';
+    const cacheKey = includeDrafts ? CACHE_KEYS.POSTS_LIST + '_all' : CACHE_KEYS.POSTS_LIST;
     
     // 如果不跳过缓存，先尝试从缓存获取
-    if (!skipCache) {
-      const cachedPosts = await getCache(CACHE_KEYS.POSTS_LIST);
+    if (!skipCache && !includeDrafts) {
+      const cachedPosts = await getCache(cacheKey);
       if (cachedPosts) {
         return NextResponse.json(cachedPosts);
       }
     }
     
-    const posts = await readPosts();
+    let posts = await readPosts();
+    
+    // 默认只返回已发布的文章，除非明确要求包含草稿
+    if (!includeDrafts) {
+      posts = posts.filter(post => !post.isDraft);
+    }
     
     // 设置缓存（1小时过期）
-    if (!skipCache) {
-      await setCache(CACHE_KEYS.POSTS_LIST, posts);
+    if (!skipCache && !includeDrafts) {
+      await setCache(cacheKey, posts);
     }
     
     return NextResponse.json(posts);
@@ -67,13 +75,14 @@ export async function POST(request: NextRequest) {
     const newPost = await createPost({
       title: data.title,
       slug: slug,
-      excerpt: data.excerpt,
-      content: data.content,
+      excerpt: data.excerpt || '',
+      content: data.content || '',
       date: data.date || new Date().toISOString().split('T')[0],
       author: data.author || "博主",
       tags: data.tags || [],
       coverImage: data.coverImage,
       readTime: data.readTime,
+      isDraft: data.isDraft || false,
     });
     
     // 清除文章列表缓存

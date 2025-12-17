@@ -18,6 +18,7 @@ export default function BlogForm({ initialData, isEdit = false }: BlogFormProps)
   const router = useRouter();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [slugWarning, setSlugWarning] = useState("");
   const contentRef = useRef<HTMLTextAreaElement>(null);
@@ -31,6 +32,7 @@ export default function BlogForm({ initialData, isEdit = false }: BlogFormProps)
     tags: initialData?.tags?.join(", ") || "",
     coverImage: initialData?.coverImage || "",
     readTime: initialData?.readTime || "",
+    isDraft: initialData?.isDraft || false,
   });
 
   // 检查 slug 是否包含中文
@@ -64,6 +66,7 @@ export default function BlogForm({ initialData, isEdit = false }: BlogFormProps)
           .map((tag) => tag.trim())
           .filter((tag) => tag),
         date: initialData?.date || new Date().toISOString().split("T")[0],
+        isDraft: false,
       };
 
       const url = isEdit
@@ -111,6 +114,62 @@ export default function BlogForm({ initialData, isEdit = false }: BlogFormProps)
     if (confirm("确定要取消吗？未保存的更改将丢失。")) {
       const from = searchParams.get("from");
       router.push(from || "/admin");
+    }
+  };
+
+  // 保存草稿
+  const handleSaveDraft = async () => {
+    // 草稿只需要标题
+    if (!formData.title.trim()) {
+      alert("请至少填写标题");
+      return;
+    }
+
+    setSavingDraft(true);
+
+    try {
+      const postData = {
+        ...formData,
+        tags: formData.tags
+          .split(",")
+          .map((tag) => tag.trim())
+          .filter((tag) => tag),
+        date: initialData?.date || new Date().toISOString().split("T")[0],
+        isDraft: true,
+      };
+
+      const url = isEdit
+        ? `/api/posts/${initialData?.id}`
+        : "/api/posts";
+      
+      const method = isEdit ? "PUT" : "POST";
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(postData),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        alert("草稿已保存");
+        
+        // 如果是新建，保存后跳转到编辑页面
+        if (!isEdit && result.id) {
+          router.push(`/admin/edit/${result.id}`);
+          router.refresh();
+        }
+      } else {
+        const error = await response.json();
+        alert(`保存草稿失败: ${error.error || "未知错误"}`);
+      }
+    } catch (error) {
+      console.error("保存草稿失败:", error);
+      alert("保存草稿失败，请重试");
+    } finally {
+      setSavingDraft(false);
     }
   };
 
@@ -388,17 +447,25 @@ export default function BlogForm({ initialData, isEdit = false }: BlogFormProps)
         <button
           type="button"
           onClick={handleCancel}
-          disabled={loading}
+          disabled={loading || savingDraft}
           className="rounded-md border border-gray-300 bg-white px-6 py-2 font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
         >
           取消
         </button>
         <button
+          type="button"
+          onClick={handleSaveDraft}
+          disabled={loading || savingDraft}
+          className="rounded-md border border-amber-500 bg-amber-50 px-6 py-2 font-medium text-amber-700 shadow-sm hover:bg-amber-100 disabled:opacity-50 dark:border-amber-600 dark:bg-amber-900/20 dark:text-amber-400 dark:hover:bg-amber-900/30"
+        >
+          {savingDraft ? "保存中..." : "保存草稿"}
+        </button>
+        <button
           type="submit"
-          disabled={loading}
+          disabled={loading || savingDraft}
           className="rounded-md bg-blue-600 px-6 py-2 font-medium text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
         >
-          {loading ? "保存中..." : isEdit ? "更新博客" : "创建博客"}
+          {loading ? "发布中..." : isEdit ? (initialData?.isDraft ? "发布博客" : "更新博客") : "发布博客"}
         </button>
       </div>
     </form>

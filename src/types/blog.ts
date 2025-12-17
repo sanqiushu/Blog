@@ -9,4 +9,5 @@ export interface BlogPost {
   tags: string[];
   coverImage?: string;
   readTime?: string;
+  isDraft?: boolean;
 }
