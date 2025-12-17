@@ -6,9 +6,8 @@ import Footer from "@/components/Footer";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
 import AdminActions from "@/components/AdminActions";
 
-// 强制动态渲染，禁用缓存
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
+// 使用 ISR，每60秒重新验证
+export const revalidate = 60;
 
 interface BlogPostPageProps {
   params: Promise<{

@@ -4,8 +4,8 @@ import MarkdownRenderer from "@/components/MarkdownRenderer";
 import AboutEditButton from "@/components/AboutEditButton";
 import { readAboutContent } from "@/lib/storage";
 
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
+// 使用 ISR，每120秒重新验证
+export const revalidate = 120;
 
 export const metadata = {
   title: "关于 - 我的博客",

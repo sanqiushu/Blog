@@ -1,5 +1,6 @@
 import { ensureContainer, streamToBuffer } from "@/lib/storage/blob-core";
 import { ABOUT_BLOB_NAME } from "@/lib/storage/constants";
+import { getCache, setCache, deleteCache, CACHE_KEYS } from "@/lib/redis";
 
 export interface AboutContent {
   content: string;
@@ -28,7 +29,26 @@ const DEFAULT_ABOUT_CONTENT: AboutContent = {
   updatedAt: new Date().toISOString(),
 };
 
+// 内存缓存
+let aboutMemoryCache: { data: AboutContent; timestamp: number } | null = null;
+const MEMORY_CACHE_TTL = 60 * 1000; // 60秒内存缓存
+
 export async function readAboutContent(): Promise<AboutContent> {
+  // 首先检查内存缓存
+  if (
+    aboutMemoryCache &&
+    Date.now() - aboutMemoryCache.timestamp < MEMORY_CACHE_TTL
+  ) {
+    return aboutMemoryCache.data;
+  }
+
+  // 尝试从 Redis 缓存获取
+  const cachedAbout = await getCache<AboutContent>(CACHE_KEYS.ABOUT_CONTENT);
+  if (cachedAbout) {
+    aboutMemoryCache = { data: cachedAbout, timestamp: Date.now() };
+    return cachedAbout;
+  }
+
   try {
     const containerClient = await ensureContainer();
     const blobClient = containerClient.getBlobClient(ABOUT_BLOB_NAME);
@@ -45,11 +65,23 @@ export async function readAboutContent(): Promise<AboutContent> {
 
     const downloadResponse = await blockBlobClient.download(0);
     const downloaded = await streamToBuffer(downloadResponse.readableStreamBody!);
-    return JSON.parse(downloaded.toString("utf-8"));
+    const aboutContent = JSON.parse(downloaded.toString("utf-8"));
+
+    // 设置缓存
+    await setCache(CACHE_KEYS.ABOUT_CONTENT, aboutContent, 600); // 10分钟缓存
+    aboutMemoryCache = { data: aboutContent, timestamp: Date.now() };
+
+    return aboutContent;
   } catch (error) {
     console.error("读取关于页面内容失败:", error);
     return DEFAULT_ABOUT_CONTENT;
   }
+}
+
+// 清除关于页面缓存
+export async function invalidateAboutCache(): Promise<void> {
+  aboutMemoryCache = null;
+  await deleteCache(CACHE_KEYS.ABOUT_CONTENT);
 }
 
 export async function updateAboutContent(content: string): Promise<AboutContent> {
@@ -66,6 +98,9 @@ export async function updateAboutContent(content: string): Promise<AboutContent>
     await blockBlobClient.uploadData(Buffer.from(data, "utf-8"), {
       blobHTTPHeaders: { blobContentType: "application/json" },
     });
+
+    // 清除缓存
+    await invalidateAboutCache();
 
     return aboutContent;
   } catch (error) {

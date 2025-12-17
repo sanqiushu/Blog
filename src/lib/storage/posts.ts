@@ -2,6 +2,7 @@ import { BlogPost } from "@/types/blog";
 import { ensureContainer, streamToBuffer } from "@/lib/storage/blob-core";
 import { POSTS_BLOB_NAME, IMAGES_CONTAINER_NAME } from "@/lib/storage/constants";
 import { deleteImage } from "@/lib/storage/images";
+import { getCache, setCache, deleteCache, CACHE_KEYS } from "@/lib/redis";
 
 function generateId(posts: BlogPost[]): string {
   const maxId =
@@ -11,7 +12,26 @@ function generateId(posts: BlogPost[]): string {
   return (maxId + 1).toString();
 }
 
+// 内存缓存，用于在没有Redis的情况下提供快速访问
+let postsMemoryCache: { data: BlogPost[]; timestamp: number } | null = null;
+const MEMORY_CACHE_TTL = 30 * 1000; // 30秒内存缓存
+
 export async function readPosts(): Promise<BlogPost[]> {
+  // 首先检查内存缓存
+  if (
+    postsMemoryCache &&
+    Date.now() - postsMemoryCache.timestamp < MEMORY_CACHE_TTL
+  ) {
+    return postsMemoryCache.data;
+  }
+
+  // 尝试从 Redis 缓存获取
+  const cachedPosts = await getCache<BlogPost[]>(CACHE_KEYS.POSTS_LIST);
+  if (cachedPosts) {
+    postsMemoryCache = { data: cachedPosts, timestamp: Date.now() };
+    return cachedPosts;
+  }
+
   try {
     const containerClient = await ensureContainer();
     const blobClient = containerClient.getBlobClient(POSTS_BLOB_NAME);
@@ -29,11 +49,23 @@ export async function readPosts(): Promise<BlogPost[]> {
 
     const downloadResponse = await blockBlobClient.download(0);
     const downloaded = await streamToBuffer(downloadResponse.readableStreamBody!);
-    return JSON.parse(downloaded.toString("utf-8"));
+    const posts = JSON.parse(downloaded.toString("utf-8"));
+
+    // 设置缓存
+    await setCache(CACHE_KEYS.POSTS_LIST, posts, 300); // 5分钟缓存
+    postsMemoryCache = { data: posts, timestamp: Date.now() };
+
+    return posts;
   } catch (error) {
     console.error("读取博客数据失败:", error);
     return [];
   }
+}
+
+// 清除文章缓存
+export async function invalidatePostsCache(): Promise<void> {
+  postsMemoryCache = null;
+  await deleteCache(CACHE_KEYS.POSTS_LIST);
 }
 
 export async function writePosts(posts: BlogPost[]): Promise<void> {
@@ -45,6 +77,9 @@ export async function writePosts(posts: BlogPost[]): Promise<void> {
     await blockBlobClient.uploadData(Buffer.from(data, "utf-8"), {
       blobHTTPHeaders: { blobContentType: "application/json" },
     });
+
+    // 清除缓存
+    await invalidatePostsCache();
   } catch (error) {
     console.error("写入博客数据失败:", error);
     throw error;
