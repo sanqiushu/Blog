@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import { useApiUrl } from "@/hooks/useApiUrl";
 
 interface GalleryImage {
   id: string;
@@ -24,6 +25,7 @@ interface GalleryFolder {
 }
 
 export default function GalleryPage() {
+  const { getApiUrl } = useApiUrl();
   const [folders, setFolders] = useState<GalleryFolder[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -35,7 +37,7 @@ export default function GalleryPage() {
   // 加载文件夹列表
   const loadFolders = useCallback(async () => {
     try {
-      const response = await fetch("/api/gallery");
+      const response = await fetch(getApiUrl("/api/gallery"));
       if (response.ok) {
         const data = await response.json();
         setFolders(data.folders);
@@ -45,7 +47,7 @@ export default function GalleryPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [getApiUrl]);
 
   // 检查登录状态
   useEffect(() => {

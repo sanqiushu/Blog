@@ -7,10 +7,12 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { FullscreenPreview, ImageGrid } from "@/components/gallery";
 import { GalleryFolder } from "@/types/gallery";
+import { useApiUrl } from "@/hooks/useApiUrl";
 
 export default function FolderPage() {
   const params = useParams();
   const router = useRouter();
+  const { getApiUrl } = useApiUrl();
   const folderId = params.folderId as string;
   
   const [folder, setFolder] = useState<GalleryFolder | null>(null);
@@ -33,7 +35,7 @@ export default function FolderPage() {
   // 加载文件夹
   const loadFolder = useCallback(async () => {
     try {
-      const response = await fetch(`/api/gallery/${folderId}`);
+      const response = await fetch(getApiUrl(`/api/gallery/${folderId}`));
       if (response.ok) {
         const data = await response.json();
         setFolder(data.folder);
@@ -45,7 +47,7 @@ export default function FolderPage() {
     } finally {
       setLoading(false);
     }
-  }, [folderId, router]);
+  }, [folderId, router, getApiUrl]);
 
   useEffect(() => {
     async function checkAuth() {
