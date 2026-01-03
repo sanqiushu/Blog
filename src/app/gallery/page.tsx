@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import Link from "next/link";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -24,7 +24,7 @@ interface GalleryFolder {
   updatedAt: string;
 }
 
-export default function GalleryPage() {
+function GalleryContent() {
   const { getApiUrl } = useApiUrl();
   const [folders, setFolders] = useState<GalleryFolder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -265,5 +265,25 @@ export default function GalleryPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function GalleryPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen flex-col bg-gray-50 dark:bg-black">
+        <Header />
+        <main className="flex-1">
+          <div className="mx-auto max-w-6xl px-4 py-12">
+            <div className="flex items-center justify-center py-20">
+              <div className="text-gray-500">加载中...</div>
+            </div>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    }>
+      <GalleryContent />
+    </Suspense>
   );
 }
