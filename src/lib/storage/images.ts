@@ -144,14 +144,15 @@ export async function uploadImage(
     },
   });
 
-  const originalBuffer = await compressImage(
-    file,
-    IMAGE_SIZES.original.width,
-    IMAGE_SIZES.original.quality
-  );
+  // 修改：直接上传原图，不进行压缩和调整大小，确保下载的是原始文件
+  // const originalBuffer = await compressImage(
+  //   file,
+  //   IMAGE_SIZES.original.width,
+  //   IMAGE_SIZES.original.quality
+  // );
   const originalBlobClient = containerClient.getBlockBlobClient(baseName);
 
-  await originalBlobClient.uploadData(originalBuffer, {
+  await originalBlobClient.uploadData(file, {
     blobHTTPHeaders: {
       blobContentType: contentType,
       blobCacheControl: "public, max-age=31536000",
