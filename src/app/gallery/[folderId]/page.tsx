@@ -25,6 +25,10 @@ export default function FolderPage() {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [isReordering, setIsReordering] = useState(false);
+  
+  // 重命名相关状态
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
 
   // 加载文件夹
   const loadFolder = useCallback(async () => {
@@ -212,6 +216,40 @@ export default function FolderPage() {
     }
   };
 
+  // 重命名文件夹
+  const handleRename = async () => {
+    if (!newFolderName.trim() || !folder) return;
+    
+    try {
+      const response = await fetch(`/api/gallery/${folderId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "rename", newName: newFolderName.trim() }),
+        credentials: "include",
+      });
+
+      if (response.ok) {
+        setFolder({ ...folder, name: newFolderName.trim() });
+        setIsRenaming(false);
+        setNewFolderName("");
+      } else {
+        const data = await response.json();
+        alert(`重命名失败: ${data.error}`);
+      }
+    } catch (error) {
+      console.error("重命名失败:", error);
+      alert("重命名失败，请重试");
+    }
+  };
+
+  // 开始重命名
+  const startRenaming = () => {
+    if (folder) {
+      setNewFolderName(folder.name);
+      setIsRenaming(true);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex min-h-screen flex-col bg-gray-50 dark:bg-black">
@@ -253,9 +291,64 @@ export default function FolderPage() {
           </nav>
           
           <div className="flex items-center justify-between mb-8">
-            <h1 className="text-4xl font-bold text-gray-900 dark:text-white">
-              {folder.name}
-            </h1>
+            <div className="flex items-center gap-3">
+              {isRenaming ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={newFolderName}
+                    onChange={(e) => setNewFolderName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleRename();
+                      if (e.key === "Escape") {
+                        setIsRenaming(false);
+                        setNewFolderName("");
+                      }
+                    }}
+                    className="text-2xl font-bold px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    autoFocus
+                  />
+                  <button
+                    onClick={handleRename}
+                    className="p-2 text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
+                    title="保存"
+                  >
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsRenaming(false);
+                      setNewFolderName("");
+                    }}
+                    className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                    title="取消"
+                  >
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <h1 className="text-4xl font-bold text-gray-900 dark:text-white">
+                    {folder.name}
+                  </h1>
+                  {isAdmin && (
+                    <button
+                      onClick={startRenaming}
+                      className="p-2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors"
+                      title="重命名相册"
+                    >
+                      <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                      </svg>
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
             
             {isAdmin && (
               <div>
@@ -322,6 +415,7 @@ export default function FolderPage() {
           currentIndex={selectedImageIndex}
           onClose={() => setSelectedImageIndex(null)}
           onNavigate={setSelectedImageIndex}
+          isAdmin={isAdmin}
         />
       )}
     </div>

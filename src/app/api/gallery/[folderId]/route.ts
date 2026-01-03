@@ -5,6 +5,7 @@ import {
   deleteImageFromFolder,
   setFolderCover,
   reorderImagesInFolder,
+  renameGalleryFolder,
 } from "@/lib/storage";
 import { isAuthenticated } from "@/lib/auth";
 import { 
@@ -110,7 +111,17 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     const { folderId } = await params;
-    const { action, imageId, imageIds } = await request.json();
+    const { action, imageId, imageIds, newName } = await request.json();
+    
+    if (action === "rename" && newName) {
+      await renameGalleryFolder(folderId, newName);
+      
+      // 清除相关缓存
+      await deleteCache(CACHE_KEYS.GALLERY_FOLDER(folderId));
+      await deleteCache(CACHE_KEYS.GALLERY_FOLDERS);
+      
+      return NextResponse.json({ success: true });
+    }
     
     if (action === "setCover" && imageId) {
       await setFolderCover(folderId, imageId);
