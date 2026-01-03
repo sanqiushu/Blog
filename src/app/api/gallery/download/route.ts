@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     const contentType = response.headers.get("content-type") || "application/octet-stream";
     
     // 使用流式传输，避免大文件占用过多内存
-    // @ts-ignore: NextResponse supports ReadableStream
+    // @ts-expect-error: NextResponse supports ReadableStream
     return new NextResponse(response.body, {
       status: 200,
       headers: {
